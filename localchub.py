@@ -4,11 +4,11 @@ from PIL import Image, UnidentifiedImageError
 
 app = Flask(__name__)
 
-CARDS_PER_PAGE = 50
+CARDS_PER_PAGE = 100
 CARD_PREVIEW_SIZE = (300, 300)
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--autoupdate', type=int, default=None, nargs='?', const=60, help='Auto-update interval in seconds')
+parser.add_argument('--autoupdate', type=int, default=300, nargs='?', const=60, help='Auto-update interval in seconds')
 parser.add_argument('--synctags', action='store_true', default=False, help='Enable tag synchronization')
 parser.add_argument('--backup', action='store_true', default=False, help='Backup old cards to /backup')
 args = parser.parse_args()
@@ -22,7 +22,7 @@ def autoUpdate():
     while True:
         print(f'[autoupdate/{autoupdInterval}s] Updating cards..')
         try:
-            requests.get('http://127.0.0.1:1488/sync')
+            requests.get('http://127.0.0.1:1488/sync?c=20')
         except requests.ConnectionError:
             pass
         time.sleep(autoupdInterval)
@@ -66,25 +66,46 @@ def getCardList(page, query=None, searchType='basic'):
     cardIds = sorted([int(file.split('.')[0]) for file in os.listdir('static') if file.lower().endswith('.png')], reverse=True)
     count = len(cardIds)
     randomTags = set()
-
+    
     if query:
+        include_tags = set()
+        exclude_tags = set()
+        
+        for tag in query.lower().split(','):
+            tag = tag.strip()
+            if tag.startswith('-'):
+                exclude_tags.add(tag[1:].strip())  # Remove the '-' and add to exclude list
+            else:
+                include_tags.add(tag.strip())
+
+        filtered_cards = []
+        
         for cardId in cardIds:
             metadata = getCardMetadata(cardId)
-            randomTags.update(metadata['topics'])
+            card_tags = set(tag.lower() for tag in metadata['topics'])
+            randomTags.update(card_tags)
 
-            if searchType == 'tag' and all(tag.strip() in [tag.lower() for tag in metadata['topics']] for tag in query.lower().split(',')):
-                cards.append(createCardEntry(metadata))
-            elif searchType == 'author' and query.strip().lower() == metadata['fullPath'].split('/')[0].lower():
-                cards.append(createCardEntry(metadata))
-            elif searchType == 'title' and query.strip().lower() in metadata['name'].lower():
-                cards.append(createCardEntry(metadata))
-            elif searchType == 'random':
-                cnt = int(re.search(r'\d+', query)[0]) if re.search(r'\d+', query) else 10
-                for i in range(cnt):
-                    [cards.append(createCardEntry(getCardMetadata(random.choice(cardIds))))]
-                break
-            elif searchType == 'basic' and all(query.strip().lower() in metadata['name'].lower() or query.strip().lower() in metadata['tagline'].lower() or query.strip().lower() in metadata['description'].lower() or query.strip().lower() in [tag.lower() for tag in metadata['topics']] for query in query.lower().split(',')):
-                cards.append(createCardEntry(metadata))
+            # Inclusion logic
+            if include_tags and not include_tags.issubset(card_tags):
+                continue  # Skip if any included tag is missing
+            
+            # Exclusion logic
+            if exclude_tags and not exclude_tags.isdisjoint(card_tags):
+                continue  # Skip if any excluded tag is found
+            
+            filtered_cards.append(createCardEntry(metadata))
+
+        # Fix: Use full filtered list count, not total dataset count
+        filtered_count = len(filtered_cards)
+
+        # Pagination logic for search
+        startIndex = (page - 1) * CARDS_PER_PAGE
+        endIndex = startIndex + CARDS_PER_PAGE
+        paginated_cards = filtered_cards[startIndex:endIndex]
+
+        total_pages = (filtered_count // CARDS_PER_PAGE) + (1 if filtered_count % CARDS_PER_PAGE else 0)
+
+        return paginated_cards, filtered_count, total_pages, randomTags
 
     else:
         startIndex = (page - 1) * CARDS_PER_PAGE
@@ -95,8 +116,9 @@ def getCardList(page, query=None, searchType='basic'):
                 randomTags.update(metadata['topics'])
                 cards.append(createCardEntry(metadata))
 
-    randomTags = random.choices(list(randomTags), k=10) # randomTags = random.sample(list(randomTags), min(10, len(randomTags)))
-    return cards, count, randomTags
+    total_pages = (count // CARDS_PER_PAGE) + (1 if count % CARDS_PER_PAGE else 0)
+    return cards, count, total_pages, randomTags
+
 
 def blacklistAdd(cardId):
     if not os.path.exists('blacklist.txt'):
@@ -124,14 +146,23 @@ def get_png_info(cardId):
 def index():
     page = int(request.args.get('page', 1))
     query = request.args.get('query')
-    searchType = request.args.get('type')
-    cards, count, randomTags = getCardList(page, query, searchType)
+    searchType = request.args.get('type', 'basic')
 
-    search_results = None
-    if query:
-        search_results = [card for card in cards]
+    cards, count, total_pages, randomTags = getCardList(page, query, searchType)
 
-    return render_template('index.html', cards=cards, page=page, card_preview_size=CARD_PREVIEW_SIZE, search_results=search_results, count=count, random_tags=randomTags)
+    search_results = cards if query else None  # Only store paginated results
+
+    return render_template(
+        'index.html',
+        cards=cards,
+        page=page,
+        total_pages=total_pages,
+        card_preview_size=CARD_PREVIEW_SIZE,
+        search_results=search_results,
+        count=count,
+        random_tags=randomTags
+    )
+
 
 @app.route('/sync', methods=['GET'])
 def syncCards():
@@ -177,7 +208,7 @@ def syncCards():
     def genSyncData():
         nonlocal totalCards
         page = 1
-        r = requests.get('https://api.chub.ai/search', params={'first': totalCards, 'page': f'{page}', 'sort': 'last_activity_at', 'venus': 'false', 'asc': 'false', 'nsfw': 'true', 'min_tokens': '50'}, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'}).json()
+        r = requests.get('https://api.chub.ai/search', params={'first': totalCards, 'page': f'{page}', 'sort': 'last_activity_at', 'venus': 'false', 'asc': 'false', 'nsfw': 'true', 'min_tokens': '500', 'include_forks': 'false'}, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'}).json()
         cards = r['data']['nodes']
         for card in cards:
             yield f"data: {json.dumps({'progress': round((currCard / len(cards)) * 100, 2), 'currCard': card['name'], 'newCards': newCards})}\n\n"
@@ -211,6 +242,21 @@ def edit_tags(cardId):
         return jsonify({'message': 'Tags updated successfully'}), 200
     except Exception as e:
         return jsonify({'message': str(e)}), 500
+    
+@app.route('/load_more', methods=['GET'])
+def load_more():
+    page = int(request.args.get('page', 1))
+    query = request.args.get('query')
+    searchType = request.args.get('type', 'basic')
+
+    cards, count, total_pages, _ = getCardList(page, query, searchType)
+
+    return jsonify({
+        'cards': cards,
+        'page': page,
+        'total_pages': total_pages
+    })
+
 
 if __name__ == '__main__':
     if autoupdMode:
