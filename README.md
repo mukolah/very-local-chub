@@ -20,6 +20,9 @@ Fork of [ayofreaky/local-chub](https://github.com/ayofreaky/local-chub "ayofreak
 
 ## Commands: 
 `--synctags` sync/overwrite user tags
+
 `--autoupdate %s` auto update loop (default=300) **- activated by default**
+
 `--backup` backup old cards to /backup
+
 `python localchub.py --synctags --backup --autoupdate 300`
