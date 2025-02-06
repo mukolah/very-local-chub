@@ -487,7 +487,7 @@
     <div class="search-container">
         <form action='/' method='get'>
             <input type='text' id="searchInput" name='query'
-                placeholder='Use commas to separate queries, use minus - to exlude'
+                placeholder='Use commas to separate queries, use minus to exclude, e.g. -rpg'
                 value="{{ request.args.get('query', '') }}" autocomplete='off' id="searchInput">
             <select name='type' id='searchtype' class='search-type'>
                 <option value='basic'>Basic</option>
