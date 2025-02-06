@@ -15,6 +15,7 @@ Fork of [ayofreaky/local-chub](https://github.com/ayofreaky/local-chub "ayofreak
 - Limited cards auto-update to first chub page (20 cards)
 - Auto-update enabled by default with a 5 minute interval
 - Visit http://127.0.0.1:1488/sync?c=200 where the number after c= is the number of cards you want to update/download chronologically
+- Cards with no tags at all are hidden since they always represent low effort cards or just spam
 
 ------------
 
