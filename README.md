@@ -10,7 +10,7 @@ Satisfying your character cards hoarding syndrome has never been easier
 
 
 ## What's new:
-- ⚠️ **Improved privacy**: loading anything from external resources is no longer allowed
+- ⚠️ **Improved privacy**: loading anything from external resources by card description is no longer allowed
 - Replaced "pages" with lazy loading (**infinite scroll**)
 - **Tags can now be excluded** during search by using a minus "-", for example, -rpg
 - Lifted restrictions on card downloads to **properly pull all cards**
