@@ -47,13 +47,13 @@
             padding: 10px;
             margin: 10px;
             width: 300px;
+            max-height: 620px;
             display: flex;
             flex-direction: column;
             justify-content: space-between;
             align-items: center;
-            overflow: hidden;
+            overflow: auto;
             position: relative;
-            overflow: hidden;
             border-radius: 8px;
         }
 
@@ -71,7 +71,6 @@
             word-break: break-word;
             overflow-wrap: break-word;
             padding: 10px;
-            max-height: 300px;
             overflow-y: auto;
         }
 
@@ -183,6 +182,10 @@
             border-radius: 6px;
             margin-left: 10px;
             cursor: pointer;
+        }
+
+        .search-liner {
+            display: inline-flex;
         }
 
         /* Media queries for responsiveness */
@@ -379,6 +382,10 @@
             margin-bottom: 5px;
         }
 
+        div#card {
+            max-height: 620px;
+        }
+
         .sidebar-container:hover {
             background-color: #999;
         }
@@ -461,7 +468,7 @@
             overflow-y: auto;
             display: none;
             z-index: 1000;
-    color: white;
+            color: white;
         }
 
         .autocomplete-dropdown div {
@@ -479,27 +486,41 @@
             padding: 10px;
             font-size: 16px;
         }
+
+        .card-content h3 {
+            font-size: 20px;
+        }
     </style>
 </head>
 
 <body class='light-mode'>
     <h1><a href='/?page=1'>Local Chub</a></h1>
-    <div class="search-container">
-        <form action='/' method='get'>
-            <input type='text' id="searchInput" name='query'
-                placeholder='Use commas to separate queries, use minus to exclude, e.g. -rpg'
-                value="{{ request.args.get('query', '') }}" autocomplete='off' id="searchInput">
-            <select name='type' id='searchtype' class='search-type'>
-                <option value='basic'>Basic</option>
-                <option value='tag'>Tag</option>
-                <option value='title'>Title</option>
-                <option value='author'>Author</option>
-                <option value='random'>Random</option>
+    <div class="search-liner">
+        <div class="search-container">
+            <form action='/' method='get'>
+                <input type='text' id="searchInput" name='query'
+                    placeholder='Use commas to separate queries, use minus to exclude, e.g. -rpg'
+                    value="{{ request.args.get('query', '') }}" autocomplete='off' id="searchInput">
+                <select name='type' id='searchtype' class='search-type'>
+                    <option value='basic'>Basic</option>
+                    <option value='tag'>Tag</option>
+                    <option value='title'>Title</option>
+                    <option value='author'>Author</option>
+                    <option value='random'>Random</option>
+                </select>
+                <button type='submit'>Search</button>
+            </form>
+            <!-- Autocomplete dropdown -->
+            <div id="autocompleteDropdown" class="autocomplete-dropdown"></div>
+        </div>
+        <!-- Sorting Dropdown -->
+        <div class="sort-dropdown">
+            <label for="sort"></label>
+            <select name="sort" id="sort" class="search-type" onchange="handleSortChange(event)">
+                <option value="createdAt">Sort: Card Created</option>
+                <option value="lastActivityAt">Sort: Card Updated</option>
             </select>
-            <button type='submit'>Search</button>
-        </form>
-        <!-- Autocomplete dropdown -->
-        <div id="autocompleteDropdown" class="autocomplete-dropdown"></div>
+        </div>
     </div>
 
     {% if search_results %}
@@ -534,13 +555,24 @@
             <button class='action-button copy-json-button' onclick="copyJSON('{{ card.id }}', this)"
                 title="Copy JSON">📋</button>
             <img src='{{ card.imagePath }}' alt='{{ card.name }}' class='card-image' title='Click for details'>
-            <div class='card-content'>
+            <div class='card-content' style="max-height: 620px;">
                 <h3 title='{{ card.lastActivityAt }}'
                     onclick="showLightbox('{{ card.imagePath }}', '{{ card.description }}', '{{ card.id }}')">{{
                     card.name }}</h3>
-                <p>by <a href='?query={{ card.author }}&type=author' title='Browse all cards by {{ card.author }}'>{{
-                        card.author }}</a> | {{ card.tokenCount }} tokens</p>
-                <br>
+                <p style="font-size: 13px;">
+                    by <a href='?query={{ card.author }}&type=author' title='Browse all cards by {{ card.author }}'>{{
+                        card.author }}</a> | {{ card.tokenCount }} tokens
+                </p>
+                <p style="font-size: 11px;"><span title="Created by Author date/time">⚒ {{ card.createdAt }}</span> |
+                    <span title="Last update by Author date/time">🗘 {{ card.lastActivityAt }}</span>
+                </p>
+                <button class='download-btn'
+                    onclick='downloadImage("{{ card.imagePath }}", "{{ card.name }}")'>Download</button>
+                {% if card.topics %}
+                <p id='tags'><i>Tags: {% for topic in card.topics %}<a href='?query={{ topic }}&type=tag'
+                            title='Browse other cards tagged with {{ topic }}'>{{ topic }}</a>{% if not loop.last %}, {%
+                        endif %}{% endfor %}</i></p>
+                {% endif %}
                 <p id='descr'>
                     {% if card.tagline|length > 1 %}
                 <p id='tagline'>{{ card.tagline }}</p>
@@ -549,17 +581,6 @@
                 <p id='description'>{{ card.description }}</p>
                 {% endif %}
                 </p>
-
-                {% if card.topics %}
-                <br>
-                <p id='tags'><i>Tags: {% for topic in card.topics %}<a href='?query={{ topic }}&type=tag'
-                            title='Browse other cards tagged with {{ topic }}'>{{ topic }}</a>{% if not loop.last %}, {%
-                        endif %}{% endfor %}</i></p>
-                {% endif %}
-
-                <br>
-                <button class='download-btn'
-                    onclick='downloadImage("{{ card.imagePath }}", "{{ card.name }}")'>Download</button>
             </div>
         </div>
         {% endfor %}
@@ -580,23 +601,24 @@
             <button class='action-button copy-json-button' onclick="copyJSON('{{ card.id }}', this)"
                 title="Copy JSON">📋</button>
             <img src='{{ card.imagePath }}' alt='{{ card.name }}' class='card-image' title='Click for details'>
-            <div class='card-content'>
+            <div class='card-content' style="max-height: 620px;">
                 <h3 title='{{ card.lastActivityAt }}'
                     onclick="showLightbox('{{ card.imagePath }}', '{{ card.description }}', '{{ card.id }}')">{{
                     card.name }}</h3>
-                <p>by <a href='?query={{ card.author }}&type=author' title='Browse all cards by {{ card.author }}'>{{
-                        card.author }}</a> | {{ card.tokenCount }} tokens<br></p>
-                <!-- <p>{{ card.lastActivityAt }}</p> -->
-                <br>
+                <p style="font-size: 13px;">
+                    by <a href='?query={{ card.author }}&type=author' title='Browse all cards by {{ card.author }}'>{{
+                        card.author }}</a> | {{ card.tokenCount }} tokens<br>
+                </p>
+                <p style="font-size: 11px;"><span title="Created by Author date/time">⚒ {{ card.createdAt }}</span> |
+                    <span title="Last update by Author date/time">🗘 {{ card.lastActivityAt }}</span>
+                </p>
                 <button class='download-btn'
                     onclick='downloadImage("{{ card.imagePath }}", "{{ card.name }}")'>Download</button>
                 {% if card.topics %}
-                <br>
                 <p id='tags'><i>Tags: {% for topic in card.topics %}<a href='?query={{ topic }}&type=tag'
                             title='Browse other cards tagged with {{ topic }}'>{{ topic }}</a>{% if not loop.last %}, {%
                         endif %}{% endfor %}</i></p>
                 {% endif %}
-                <br>
                 <p id='descr'>
                     {% if card.tagline|length > 1 %}
                 <p id='tagline'>{{ card.tagline }}</p>
@@ -661,6 +683,8 @@
         <button onclick='scrollToBottom()' class='sidebar-container' title='Scroll to bottom'>⬇</button>
 
     </div>
+
+
 
     <script>
         const darkModePref = localStorage.getItem('darkMode');
@@ -1021,22 +1045,21 @@
                     </div>
                     <button class='action-button copy-json-button' onclick="copyJSON('${card.id}', this)" title="Copy JSON">📋</button>
                     <img src='${card.imagePath}' alt='${card.name}' class='card-image' title='Click for details'>
-                    <div class='card-content'>
+                    <div class='card-content' style="max-height: 620px;">
                         <h3 title='${card.lastActivityAt}' onclick="showLightbox('${card.imagePath}', '${card.description}', '${card.id}')">${card.name}</h3>
-                        <p>by <a href='?query=${card.author}&type=author' title='Browse all cards by ${card.author}'>${card.author}</a> | ${card.tokenCount} tokens</p>
-                        <br>
+                        <p style="font-size: 13px;">by <a href='?query=${card.author}&type=author' title='Browse all cards by ${card.author}'>${card.author}</a> | ${card.tokenCount} tokens</p>
+                        <p style="font-size: 11px;"><span title="Created by Author date/time">⚒ ${card.createdAt}</span> | <span title="Last update by Author date/time">🗘 ${card.lastActivityAt}</span></p>
+                        <button class='download-btn' onclick='downloadImage("${card.imagePath}", "${card.name}")'>Download</button>
+                        <p>
+                        ${card.topics.length > 0 ? `
+                            <p id='tags'><i>Tags: ${card.topics.map(topic => `<a href='?query=${topic}&type=tag' title='Browse other cards tagged with ${topic}'>${topic}</a>`).join(', ')}</i></p>
+                        ` : ''}
+                        </p>
                         <p id='descr'>
                             ${card.tagline ? `<p id='tagline'>${card.tagline}</p>` : ''}
                             ${card.description ? `<p id='description'>${card.description}</p>` : ''}
                         </p>
-                        ${card.topics.length > 0 ? `
-                            <br>
-                            <p id='tags'><i>Tags: ${card.topics.map(topic => `<a href='?query=${topic}&type=tag' title='Browse other cards tagged with ${topic}'>${topic}</a>`).join(', ')}</i></p>
-                        ` : ''}
-                        <br>
-                        <button class='download-btn' onclick='downloadImage("${card.imagePath}", "${card.name}")'>Download</button>
-                    </div>
-                `;
+                    </div>`;
 
                         container.appendChild(cardDiv);
 
@@ -1173,6 +1196,78 @@
                     autocompleteDropdown.style.display = 'none';
                 }
             });
+
+            
+
+        });
+
+        document.addEventListener('DOMContentLoaded', function () {
+        const sortSelect = document.getElementById('sort');
+
+            // Function to update sorting based on user selection
+            function handleSortChange(event) {
+                let selectedValue = event.target.value;
+
+                const urlParams = new URLSearchParams(window.location.search);
+                let query = urlParams.get('query') || '';
+                let type = urlParams.get('type') || 'basic';
+                let page = 1; // Reset to the first page when sorting
+
+                fetch(`/sort?page=${page}&query=${query}&type=${type}&sort=${selectedValue}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        const container = document.getElementById("cards-container");
+                        container.innerHTML = ''; // Clear existing cards
+
+                        data.cards.forEach(card => {
+                            let cardDiv = document.createElement("div");
+                            cardDiv.classList.add("card-container");
+                            cardDiv.id = `card-${card.id}`;
+
+                            // Add the full HTML structure for each card
+                            cardDiv.innerHTML = `
+                    <button class='action-button delete-card-button' onclick='deleteCard("${card.id}")' title='Delete card'>🗙</button>
+                    <button class='action-button edit-tags-button' onclick="showEditTags(this, '${card.topics.join(',')}')" title='Edit tags'>✎</button>
+                    <div class='edit-tags-container' style='display: none;'>
+                        <input type='text' class='edit-tags-input'>
+                        <button class='save-tags-button' onclick='saveTags("${card.id}")'>Save</button>
+                    </div>
+                    <button class='action-button copy-json-button' onclick="copyJSON('${card.id}', this)" title="Copy JSON">📋</button>
+                    <img src='${card.imagePath}' alt='${card.name}' class='card-image' title='Click for details'>
+                    <div class='card-content' style="max-height: 620px;">
+                        <h3 title='${card.lastActivityAt}' onclick="showLightbox('${card.imagePath}', '${card.description}', '${card.id}')">${card.name}</h3>
+                        <p style="font-size: 13px;">by <a href='?query=${card.author}&type=author' title='Browse all cards by ${card.author}'>${card.author}</a> | ${card.tokenCount} tokens</p>
+                        <p style="font-size: 11px;"><span title="Created by Author date/time">⚒ ${card.createdAt}</span> | <span title="Last update by Author date/time">🗘 ${card.lastActivityAt}</span></p>
+                        <button class='download-btn' onclick='downloadImage("${card.imagePath}", "${card.name}")'>Download</button>
+                        <p>
+                        ${card.topics.length > 0 ? `
+                            <p id='tags'><i>Tags: ${card.topics.map(topic => `<a href='?query=${topic}&type=tag' title='Browse other cards tagged with ${topic}'>${topic}</a>`).join(', ')}</i></p>
+                        ` : ''}
+                        </p>
+                        <p id='descr'>
+                            ${card.tagline ? `<p id='tagline'>${card.tagline}</p>` : ''}
+                            ${card.description ? `<p id='description'>${card.description}</p>` : ''}
+                        </p>
+                    </div>`;
+
+                            container.appendChild(cardDiv);
+
+                            // Attach lightbox event listeners to the new card (optional)
+                            attachLightboxListeners(cardDiv);
+                        });
+                    })
+                    .catch(error => console.error("Error fetching sorted cards:", error));
+            }
+
+            // Event listener for sorting dropdown changes
+            sortSelect.addEventListener('change', handleSortChange);
+            window.handleSortChange = handleSortChange;
+
+            // Initialize current state from URL parameters
+            let urlParams = new URLSearchParams(window.location.search);
+            currentPage = parseInt(urlParams.get('page')) || 1;
+            currentQuery = urlParams.get('query') || '';
+            currentType = urlParams.get('type') || 'basic';
         });
 
     </script>

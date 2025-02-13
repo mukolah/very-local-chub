@@ -2,6 +2,8 @@ import os, json, base64, requests, re, random, argparse, time, threading, dateti
 from flask import Flask, render_template, request, send_from_directory, jsonify, Response
 from PIL import Image, UnidentifiedImageError
 
+#Does not support after scrolling styling for max card height, text size (set in html), made by, and other styles
+
 app = Flask(__name__)
 
 CARDS_PER_PAGE = 100
@@ -11,21 +13,54 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--autoupdate', type=int, default=300, nargs='?', const=60, help='Auto-update interval in seconds')
 parser.add_argument('--synctags', action='store_true', default=False, help='Enable tag synchronization')
 parser.add_argument('--backup', action='store_true', default=False, help='Backup old cards to /backup')
+parser.add_argument('--min_tags', type=int, default=0, help='Minimum number of tags for card to be saved')
+parser.add_argument('--include_tags', type=str, default="", help='Only downloads cards with specified tags (comma-separated)')
+parser.add_argument('--exclude_tags', type=str, default="nonenglish", help='Comma-separated list of tags to exclude on download')
+sorting_methods = [
+    'download_count', 'id', 'rating', 'default', 'rating_count', 
+    'last_activity_at', 'trending_downloads', 'n_favorites', 'created_at', 
+    'star_count', 'msgs_chat', 'msgs_user', 'chats_user', 'name', 'timeline', 
+    'n_tokens', 'random', 'trending', 'newcomer', 'favorite_time', 'ai_rating'
+]
+parser.add_argument('--sorting', type=str, default='last_activity_at', choices=sorting_methods, help=f'Sorting method (default: last_activity_at). Options: {", ".join(sorting_methods)}')
+parser.add_argument('--allow_nsfw', action='store_true', default=True, help='Include NSFW items in the result')
+parser.add_argument('--allow_nsfl', action='store_true', default=True, help='Include NSFL items in the result')
+parser.add_argument('--min_tokens', type=int, default=250, help='Minimum total token count of the card')
+parser.add_argument('--max_tokens', type=int, default=128000, help='Maximum total token count of the card')
+parser.add_argument('--include_forks', action='store_true', default=False, help='Download forks as well as root cards')
+parser.add_argument('--require_expressions', action='store_true', default=False, help='Require an expression pack')
+parser.add_argument('--require_lore_embedded', action='store_true', default=False, help='Require either an embedded lorebook')
 args = parser.parse_args()
 autoupdInterval = args.autoupdate
 autoupdMode = args.autoupdate is not None
 synctagsMode = args.synctags
 backupMode = args.backup
+min_tags = args.min_tags
+include_tags = args.include_tags
+exclude_tags = args.exclude_tags
+sorting = args.sorting
+allow_nsfw = args.allow_nsfw
+allow_nsfl = args.allow_nsfl
+min_tokens = args.min_tokens
+max_tokens = args.max_tokens
+include_forks = args.include_forks
+require_expressions = args.require_expressions
+require_lore_embedded = args.require_lore_embedded
+
 autoupdThread = None
+autoupdRunning = False
+
+autoupdEvent = threading.Event()
 
 def autoUpdate():
-    while True:
+    while not autoupdEvent.is_set():
         print(f'[autoupdate/{autoupdInterval}s] Updating cards..')
         try:
             requests.get('http://127.0.0.1:1488/sync?c=20')
         except requests.ConnectionError:
             pass
-        time.sleep(autoupdInterval)
+        autoupdEvent.wait(autoupdInterval)
+
 
 def deleteCard(cardId):
     for ext in ['png', 'json']:
@@ -49,23 +84,42 @@ def pngCheck(cardId):
         return False
 
 def createCardEntry(metadata):
+    # Remove HTML tags and unwanted characters from the description using regex
+    cleaned_description = re.sub(r'<[^>]+>', '', metadata['description'])  # Remove all HTML tags
+    cleaned_description = re.sub(r'\s+', ' ', cleaned_description)  # Replace multiple spaces with a single space
+    cleaned_description = cleaned_description.strip()  # Strip leading and trailing whitespace
+
+    # Same for tagline (short description)
+    cleaned_tagline = re.sub(r'<[^>]+>', '', metadata['tagline'])  # Remove all HTML tags
+    cleaned_tagline = re.sub(r'\s+', ' ', cleaned_tagline)  # Replace multiple spaces with a single space
+    cleaned_tagline = cleaned_description.strip()  # Strip leading and trailing whitespace
+
     return {
         'id': metadata['id'],
         'author': metadata['fullPath'].split('/')[0],
         'name': metadata['name'],
-        'tagline': metadata['tagline'],
-        'description': metadata['description'].replace('Creator\'s notes go here.', '\n'),
+        'tagline': cleaned_tagline,
+        'description': cleaned_description,  # Use the cleaned description
         'topics': [topic for topic in metadata['topics'] if topic != 'ROOT'],
         'imagePath': f'static/{metadata["id"]}.png',
         'tokenCount': metadata['nTokens'],
-        'lastActivityAt': datetime.datetime.strptime(metadata['lastActivityAt'], "%Y-%m-%dT%H:%M:%SZ").strftime("%B %d, %Y %H:%M")
+        'lastActivityAt': datetime.datetime.strptime(metadata['lastActivityAt'], "%Y-%m-%dT%H:%M:%SZ").strftime("%b %d, %Y %H:%M"),
+        'createdAt': datetime.datetime.strptime(metadata['createdAt'], "%Y-%m-%dT%H:%M:%SZ").strftime("%b %d, %Y %H:%M")
     }
 
-def getCardList(page, query=None, searchType='basic'):
+def getCardList(page, query=None, searchType='basic', sort_by='createdAt'):
     cards = []
     cardIds = sorted([int(file.split('.')[0]) for file in os.listdir('static') if file.lower().endswith('.png')], reverse=True)
     count = len(cardIds)
     randomTags = set()
+
+    # Apply sorting based on the user's choice
+    if sort_by == 'lastActivityAt':
+        cardIds.sort(key=lambda x: datetime.datetime.strptime(getCardMetadata(x)['lastActivityAt'], "%Y-%m-%dT%H:%M:%SZ"), reverse=True)
+    if sort_by == 'createdAt':
+        cardIds.sort(key=lambda x: datetime.datetime.strptime(getCardMetadata(x)['createdAt'], "%Y-%m-%dT%H:%M:%SZ"), reverse=True)
+    else:
+        cardIds.sort(reverse=True)
     
     if query:
         include_tags = set()
@@ -147,6 +201,7 @@ def index():
     page = int(request.args.get('page', 1))
     query = request.args.get('query')
     searchType = request.args.get('type', 'basic')
+    sort_by = request.args.get('sort', 'createdAt')
 
     cards, count, total_pages, randomTags = getCardList(page, query, searchType)
 
@@ -163,15 +218,55 @@ def index():
         random_tags=randomTags
     )
 
-
 @app.route('/sync', methods=['GET'])
 def syncCards():
     totalCards, currCard, newCards = int(request.args.get('c', 500)), 0, 0
     cardIds = sorted([int(file.split('.')[0]) for file in os.listdir('static') if file.lower().endswith('.png')], reverse=True)
 
+    def should_skip_card(card):
+        for label in card.get("labels", []):
+            if label.get("title") == "TOKEN_COUNTS":
+                try:
+                    description_data = json.loads(label.get("description", "{}"))
+                    if description_data.get("total") in [1630, 5872, 3199, 1678, 3199, 2389, 2625]:
+                        return True
+                except json.JSONDecodeError:
+                    pass
+        
+        name_symbols = [
+            # Chinese (HSK 1-2)
+            "我", "你", "他", "她", "它", "我们", "你们", "他们", "她们", "这", "那", "是", "不", "了", "在", "有", "没有", "说", "问", "知道", 
+            "做", "看", "听", "想", "来", "去", "吃", "喝", "买", "卖", "高", "低", "大", "小", "多", "少", "新", "旧", "长", "短", "快", "慢",
+            "高", "低", "重", "轻", "早", "晚", "前", "后", "左", "右", "中", "上", "下", "开", "关", "笑", "哭", "跳", "跑", "走", "打", "玩",
+            # Japanese (Jōyō kanji)
+            "日", "月", "木", "水", "火", "金", "土", "人", "子", "女", "男", "大", "小", "中", "上", "下", "左", "右", "前", "後", "生", 
+            "学", "年", "今", "時", "分", "半", "長", "短", "多", "少", "高", "低", "新", "古", "青", "赤", "白", "黒", "雨", "雪", "風", 
+            "道", "駅", "車", "電", "話", "読", "書", "行", "来", "食", "飲", "買", "売", "見", "聞", "思", "考", "知", "愛", "友", "家", 
+            # Korean (Hangul syllables)
+            "가", "나", "다", "라", "마", "바", "사", "아", "자", "차", "카", "타", "파", "하", "거", "너", "더", "러", "머", "버", "서",
+            "어", "저", "처", "커", "터", "퍼", "허", "고", "노", "도", "로", "모", "보", "소", "오", "조", "초", "코", "토", "포", "호",
+            "구", "누", "두", "루", "무", "부", "수", "우", "주", "추", "쿠", "투", "푸", "후", "기", "니", "디", "리", "미", "비", "시", 
+            "이", "지", "치", "키", "티", "피", "히", "가", "나", "다", "라", "마", "바", "사", "아", "자", "차", "카", "타", "파", "하",
+            # Custom dict (collected from various bots)
+            "空", "格", "一", "是", "的", "雌", "小", "鬼", "妹", "妹", "縉", "雲", "本", "角", "色", "卡", "免", "费", "发", "布", "于", "类", "脑", "服", "务", "器", "未", "经", "允", "许", "禁", "止", "搬", "运", "或", "用", "于", "盈", "利", "贩", "卖", "将", "在", "此", "处", "更", "新", "后", "续", "版", "本", "在", "性", "爱", "医", "院", "工", "作", "的", "妈", "妈", "地", "牢", "之", "主", "庄", "晓", "飞", "机", "杯", "魅", "魔", "调", "教", "系", "统", "更", "世", "界", "设", "定", "中", "实", "装", "性", "格", "女", "性", "姓", "名", "庄", "园", "详", "细", "注", "意", "加", "载", "世", "界", "书", "开", "局", "示", "例", "生", "成", "一", "个", "强", "势", "性", "格", "身", "材", "高", "挑", "御", "姐", "型", "恶", "魔", "白", "长", "发", "有", "角", "进", "来", "佩", "佩", "约", "书", "娅"
+            ]
+        if any(symbol in card.get("name", "") for symbol in name_symbols):
+            return True
+
+        # description_symbols = ['优', '化', '了', '内', '容', '显', '示']
+        if "description" in card and any(symbol in card["description"] for symbol in name_symbols):
+            return True
+        
+        return False
+
     def dlCard(card):
         nonlocal newCards, currCard
         cardId = card['id']
+        
+        if should_skip_card(card):
+            print(f'Spam-Bot or Non-Eng card detected, skipping {card["name"]} ({cardId})..')
+            return False
+        
         pTask = 'Downloading'
         if synctagsMode and os.path.exists(f'static/{cardId}.json') and len(card['topics']) > 0:
             if card['topics'] != getCardMetadata(card['id'])['topics']:
@@ -208,7 +303,21 @@ def syncCards():
     def genSyncData():
         nonlocal totalCards
         page = 1
-        r = requests.get('https://api.chub.ai/search', params={'first': totalCards, 'page': f'{page}', 'sort': 'last_activity_at', 'venus': 'false', 'asc': 'false', 'nsfw': 'true', 'min_tokens': '500', 'include_forks': 'false'}, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'}).json()
+        r = requests.get('https://inference.chub.ai/search', params={
+            'first': totalCards, 
+            'page': f'{page}', 
+            'sort': sorting, 
+            'asc': 'false', 
+            'nsfw': allow_nsfw, 
+            'nsfl': allow_nsfl, 
+            'min_tokens': min_tokens, 
+            'max_tokens': max_tokens, 
+            'include_forks': include_forks, 
+            'min_tags': min_tags, 
+            'tags': include_tags, 
+            'exclude_tags': exclude_tags, 
+            'require_expressions': require_expressions, 
+            'require_lore_embedded': require_lore_embedded}, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'}).json()
         cards = r['data']['nodes']
         for card in cards:
             yield f"data: {json.dumps({'progress': round((currCard / len(cards)) * 100, 2), 'currCard': card['name'], 'newCards': newCards})}\n\n"
@@ -248,6 +357,7 @@ def load_more():
     page = int(request.args.get('page', 1))
     query = request.args.get('query')
     searchType = request.args.get('type', 'basic')
+    sort_by = request.args.get('sort', 'createdAt')
 
     cards, count, total_pages, _ = getCardList(page, query, searchType)
 
@@ -257,11 +367,24 @@ def load_more():
         'total_pages': total_pages
     })
 
+@app.route('/sort', methods=['GET'])
+def sort_cards():
+    page = int(request.args.get('page', 1))
+    query = request.args.get('query')
+    searchType = request.args.get('type', 'basic')
+    sort_by = request.args.get('sort', 'createdAt')
+
+    cards, count, total_pages, randomTags = getCardList(page, query, searchType, sort_by)
+
+    return jsonify({
+        'cards': cards,
+        'total_pages': total_pages
+    })
 
 if __name__ == '__main__':
-    if autoupdMode:
-        autoupdThread = threading.Thread(target=autoUpdate)
-        autoupdThread.daemon = True
+    if autoupdMode and not autoupdRunning:
+        autoupdRunning = True
+        autoupdThread = threading.Thread(target=autoUpdate, daemon=True)
         autoupdThread.start()
 
-    app.run(debug=True, port=1488)
+    app.run(debug=False, port=1488)
