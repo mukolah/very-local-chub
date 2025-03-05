@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>{{ metadata.name }}</title>
+</head>
+
+<body>
+    <h1>{{ metadata.name }}</h1>
+    <img src="{{ metadata.imagePath }}" alt="{{ metadata.name }}" style="max-width: 300px; max-height: 300px;">
+    <p><strong>Author:</strong> {{ metadata.author }}</p>
+    <p><strong>Created At:</strong> {{ metadata.createdAt }}</p>
+    <p><strong>Last Activity:</strong> {{ metadata.lastActivityAt }}</p>
+    {% if metadata.topics %}
+    <p><strong>Tags:</strong> {{ metadata.topics | join(', ') }}</p>
+    {% endif %}
+    {% if metadata.tagline %}
+    <p><strong>Tagline:</strong> {{ metadata.tagline }}</p>
+    {% endif %}
+    {% if metadata.description %}
+    <p><strong>Author describes as:</strong> {{ metadata.description }}</p>
+    {% endif %}
+    {% if metadata.data.description %}
+    <p><strong>Char description:</strong> {{ metadata.data.description }}</p>
+    {% endif %}
+    {% if metadata.data.first_mes %}
+    <p><strong>First message:</strong> {{ metadata.data.first_mes }}</p>
+    {% endif %}
+    {% if metadata.data.creator_notes %}
+    <p><strong>Greetings:</strong> {{ metadata.data.creator_notes }}</p>
+    {% endif %}
+    {% if metadata.data.mes_example %}
+    <p><strong>Message examples:</strong> {{ metadata.data.mes_example }}</p>
+    {% endif %}
+
+
+    <p>All: {{metadata}}</p>
+    <a href="javascript:window.close()">Close</a>
+</body>
+
+</html>

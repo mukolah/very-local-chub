@@ -56,7 +56,7 @@ def autoUpdate():
     while not autoupdEvent.is_set():
         print(f'[autoupdate/{autoupdInterval}s] Updating cards..')
         try:
-            requests.get('http://127.0.0.1:1488/sync?c=20')
+            requests.get('http://127.0.0.1:1488/sync?c=50')
         except requests.ConnectionError:
             pass
         autoupdEvent.wait(autoupdInterval)
@@ -72,9 +72,21 @@ def getCardMetadata(cardId):
         return metadata
 
 def getPngInfo(cardId):
-    with open(f'static/{cardId}.png', 'rb') as f:
-        img = Image.open(f)
-        return json.loads(base64.b64decode(img.png.im_info['chara']).decode('utf-8'))
+    try:
+        with open(f'static/{cardId}.png', 'rb') as f:
+            img = Image.open(f)
+            # Assuming the PNG file has accessible info, extract it
+            if "chara" in img.png.im_info:
+                return json.loads(base64.b64decode(img.png.im_info['chara']).decode('utf-8'))
+            else:
+                return {}  # Return empty dict if no 'chara' info exists
+    except FileNotFoundError:
+        return {}  # Handle file not found gracefully
+    except UnidentifiedImageError:
+        return {}  # Handle the error for non-image files
+    except Exception as e:
+        print(f'Error retrieving PNG info: {str(e)}')
+        return {}  # Return empty dictionary on any error
 
 def pngCheck(cardId):
     try:
@@ -318,6 +330,13 @@ def syncCards():
             'exclude_tags': exclude_tags, 
             'require_expressions': require_expressions, 
             'require_lore_embedded': require_lore_embedded}, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'}).json()
+        
+        # Add error handling for the response
+        if 'data' not in r:
+            print(f"Unexpected response structure: {r}")  # Log unexpected response
+            yield f"data: {json.dumps({'progress': 0, 'currCard': 'Error: No data returned from the API.', 'newCards': 0})}\n\n"
+            return
+
         cards = r['data']['nodes']
         for card in cards:
             yield f"data: {json.dumps({'progress': round((currCard / len(cards)) * 100, 2), 'currCard': card['name'], 'newCards': newCards})}\n\n"
@@ -380,6 +399,35 @@ def sort_cards():
         'cards': cards,
         'total_pages': total_pages
     })
+
+@app.route('/get_card_info/<int:cardId>', methods=['GET'])
+def get_card_info(cardId):
+    try:
+        # Retrieve metadata (ensure the function is defined and returns expected data)
+        metadata = getCardMetadata(cardId)
+        
+        # Attempt to retrieve PNG info and handle case where it is not available
+        png_info = getPngInfo(cardId)
+
+        # Combine both pieces of information with defaults
+        card_details = {
+            'name': metadata.get('name', 'Unknown'),
+            'author': metadata.get('author', 'Unknown'),
+            'tagline': metadata.get('tagline', 'No tagline'),
+            'description': metadata.get('description', 'No description'),
+            'topics': metadata.get('topics', []),
+            'imagePath': metadata.get('imagePath', '/static/'+str(cardId)+'.png'),
+            'createdAt': metadata.get('createdAt', 'Unknown date'),
+            'lastActivityAt': metadata.get('lastActivityAt', 'Unknown date'),
+            **png_info  # Merge additional PNG information safely
+        }
+        return render_template('card_details.html', metadata=card_details)
+    except FileNotFoundError as e:
+        return jsonify({'error': f'Card not found: {str(e)}'}), 404
+    except KeyError as e:
+        return jsonify({'error': f'Missing field in metadata: {str(e)}'}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     if autoupdMode and not autoupdRunning:
