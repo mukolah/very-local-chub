@@ -120,71 +120,69 @@ def createCardEntry(metadata):
     }
 
 def getCardList(page, query=None, searchType='basic', sort_by='createdAt'):
-    cards = []
-    cardIds = sorted([int(file.split('.')[0]) for file in os.listdir('static') if file.lower().endswith('.png')], reverse=True)
-    count = len(cardIds)
+    json_files = [f for f in os.listdir('static') if f.endswith('.json')]
+    
+    # Sort by file modification time (descending = newest first)
+    json_files.sort(
+        key=lambda f: os.path.getmtime(os.path.join('static', f)),
+        reverse=True
+    )
+
+    # Map file names to card IDs
+    card_ids_sorted = [int(os.path.splitext(f)[0]) for f in json_files]
+
+    filtered_cards = []
     randomTags = set()
 
-    # Apply sorting based on the user's choice
-    if sort_by == 'lastActivityAt':
-        cardIds.sort(key=lambda x: datetime.datetime.strptime(getCardMetadata(x)['lastActivityAt'], "%Y-%m-%dT%H:%M:%SZ"), reverse=True)
-    if sort_by == 'createdAt':
-        cardIds.sort(key=lambda x: datetime.datetime.strptime(getCardMetadata(x)['createdAt'], "%Y-%m-%dT%H:%M:%SZ"), reverse=True)
-    else:
-        cardIds.sort(reverse=True)
-    
     if query:
         include_tags = set()
         exclude_tags = set()
-        
+
         for tag in query.lower().split(','):
             tag = tag.strip()
             if tag.startswith('-'):
-                exclude_tags.add(tag[1:].strip())  # Remove the '-' and add to exclude list
+                exclude_tags.add(tag[1:])
             else:
-                include_tags.add(tag.strip())
+                include_tags.add(tag)
 
-        filtered_cards = []
-        
-        for cardId in cardIds:
-            metadata = getCardMetadata(cardId)
-            card_tags = set(tag.lower() for tag in metadata['topics'])
+        for card_id in card_ids_sorted:
+            try:
+                metadata = getCardMetadata(card_id)
+            except Exception:
+                continue
+
+            card_tags = set(tag.lower() for tag in metadata.get('topics', []))
             randomTags.update(card_tags)
 
-            # Inclusion logic
             if include_tags and not include_tags.issubset(card_tags):
-                continue  # Skip if any included tag is missing
-            
-            # Exclusion logic
+                continue
             if exclude_tags and not exclude_tags.isdisjoint(card_tags):
-                continue  # Skip if any excluded tag is found
-            
+                continue
+
             filtered_cards.append(createCardEntry(metadata))
 
-        # Fix: Use full filtered list count, not total dataset count
-        filtered_count = len(filtered_cards)
+        total_cards = len(filtered_cards)
+        total_pages = (total_cards + CARDS_PER_PAGE - 1) // CARDS_PER_PAGE
+        start = (page - 1) * CARDS_PER_PAGE
+        end = start + CARDS_PER_PAGE
+        return filtered_cards[start:end], total_cards, total_pages, randomTags
 
-        # Pagination logic for search
-        startIndex = (page - 1) * CARDS_PER_PAGE
-        endIndex = startIndex + CARDS_PER_PAGE
-        paginated_cards = filtered_cards[startIndex:endIndex]
+    # No query: just paginate based on sorted file list
+    start = (page - 1) * CARDS_PER_PAGE
+    end = start + CARDS_PER_PAGE
 
-        total_pages = (filtered_count // CARDS_PER_PAGE) + (1 if filtered_count % CARDS_PER_PAGE else 0)
+    cards = []
+    for card_id in card_ids_sorted[start:end]:
+        try:
+            metadata = getCardMetadata(card_id)
+            cards.append(createCardEntry(metadata))
+            randomTags.update(metadata.get('topics', []))
+        except Exception:
+            continue
 
-        return paginated_cards, filtered_count, total_pages, randomTags
-
-    else:
-        startIndex = (page - 1) * CARDS_PER_PAGE
-        endIndex = startIndex + CARDS_PER_PAGE
-        for cardId in cardIds[startIndex:endIndex]:
-            metadata = getCardMetadata(cardId)
-            if metadata:
-                randomTags.update(metadata['topics'])
-                cards.append(createCardEntry(metadata))
-
-    total_pages = (count // CARDS_PER_PAGE) + (1 if count % CARDS_PER_PAGE else 0)
-    return cards, count, total_pages, randomTags
-
+    total_cards = len(card_ids_sorted)
+    total_pages = (total_cards + CARDS_PER_PAGE - 1) // CARDS_PER_PAGE
+    return cards, total_cards, total_pages, randomTags
 
 def blacklistAdd(cardId):
     if not os.path.exists('blacklist.txt'):
