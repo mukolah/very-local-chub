@@ -160,7 +160,7 @@ CARD_PREVIEW_SIZE = (300, 300)
 # ── CLI args ───────────────────────────────────────────────────────────────────
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--autoupdate', type=int, default=30000, nargs='?', const=60)
+parser.add_argument('--autoupdate', type=int, default=300, nargs='?', const=60)
 parser.add_argument('--synctags', action='store_true', default=False)
 parser.add_argument('--backup', action='store_true', default=False)
 parser.add_argument('--min_tags', type=int, default=0)
