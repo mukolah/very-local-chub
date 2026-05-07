@@ -2,106 +2,142 @@
 Fork of [ayofreaky/local-chub](https://github.com/ayofreaky/local-chub "ayofreaky/local-chub")
 ------------
 
-## Introduction: 
+## Introduction
 
-Your self-hosted local version of chub.ai
+Your self-hosted local version of chub.ai — hoard character cards locally, browse and search them, rate them, and automate management through a REST API.
 
-Satisfying your character cards hoarding syndrome has never been easier
+## What's new
 
+- ⚠️ **Improved privacy**: loading external resources from card descriptions is blocked
+- Replaced pages with **infinite scroll**
+- **Tag exclusion** in search with `-`, e.g. `-rpg`
+- **Tag Manager** — favourite, ban, and merge tags from the sidebar
+- **Card scores** — rate each card 0–5 for Quality ⭐, Juiciness 🍑, and Story 📖. Hover a card to reveal rating buttons; click to expand a 5-icon widget with half-point precision
+- **REST API** — bearer-token authenticated endpoints for reading card data, updating scores, and managing tags. Designed for AI agents
+- **First-run auth setup** — prompted to create a username/password on first start, or skip. Reset with `reset_password.py`
+- **Safe startup** — missing `static/` folder is created automatically; missing DB with existing JSON+PNG files triggers auto-migration
+- Better vertical card containment, blocked inline card styling
+- Spam-bot and non-English card detection during sync
+- Sort by card created date for consistent results
 
-## What's new:
-- ⚠️ **Improved privacy**: loading anything from external resources by card description is no longer allowed
-- Replaced "pages" with lazy loading (**infinite scroll**)
-- **Tags can now be excluded** during search by using a minus "-", for example, -rpg
-- Lifted restrictions on card downloads to **properly pull all cards**
-- **Better vertical card containment** to prevent extra long cards due to their description
-- **Added a bunch of command line options** to make sync "yours"
-- Blocked any code and styling applied within card description (gone those highway long animated descriptions)
-- Search is no longer loading all cards on one page (added pagination and infinite scroll)
-- Search result shows the accurate number of cards found
-- Search will pull existing tags as you type (depending on the cards that you have)
-- The large tag list (at the top of the page) is hidden by default and can be shown by pressing T in the menu
-- Limited cards auto-update to first chub page (20 cards)
-- Auto-update enabled by default with a 5-minute interval
-- Updated API endpoint to inference version
-- Skip spam-bot and non-Eng cards
-- Sort results by date card created instead of last updated to provide consistent results
-
-- Visit http://127.0.0.1:1488/sync?c=200 where the number after c= is the number of cards you want to update/download (based on last update)
+Visit `http://127.0.0.1:1488/sync?c=200` to pull cards (number = how many to check)
 
 ------------
 
-## Screenshots  
+## Screenshots
 
 <img align="left" width="100%" src="https://github.com/mukolah/other_storage/blob/main/app1/very-local-chub.jpg?raw=true">
 ㅤ
 
 ---
 
-## Run Locally  
+## Run Locally
 
-Clone the project  
-
-```
+```bash
 git clone https://github.com/mukolah/very-local-chub.git
-```
-
-Go to the project directory  
-
-```
 cd very-local-chub
-```
-
-Install dependencies  
-
-```
 pip install -r requirements.txt
-```
-
-Start the server  
-
-```
 python localchub.py
 ```
 
-Connect to the local server 
+Open: http://127.0.0.1:1488
 
-http://127.0.0.1:1488
+On **first start** you'll be prompted to create an account or skip auth entirely.
 
-------------
+---
 
-## Commands: 
+## Authentication
 
-`python localchub.py --autoupdate 300 --min_tokens 200 --include_forks false`
+- First run shows a setup screen — create a username + password, or skip (leaves the instance open)
+- Once set, every browser visit requires login; the session is stored in a cookie
+- **Forgot password / want to re-enable setup prompt:**
+  ```bash
+  python reset_password.py
+  ```
+  This deletes only the auth credentials from the database — all cards, scores, tags, and the API token are untouched
 
-`--synctags` sync/overwrite user tags
+---
 
-`--autoupdate %s` auto update loop (default=300 / Activated)
+## API
 
-`--backup` backup old cards to /backup
+Generate a bearer token from the **📡** button in the sidebar (opens `/api/docs`).
 
-`--min_tags` minimum number of tags for card to be saved (default=0)
+All `/api/v1/` routes require:
+```
+Authorization: Bearer <your-token>
+```
 
-`--include_tags` only downloads cards with specific tags, comma-separated (default="")
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/v1/cards` | List cards — supports `?page=`, `?query=`, `?sort=` |
+| GET | `/api/v1/cards/<id>` | Full card data including character sheet from PNG |
+| PATCH | `/api/v1/cards/<id>` | Update scores (`quality`, `lewdity`, `story`) and/or `topics` |
+| POST | `/api/v1/cards/<id>/tags/add` | Add tags without replacing existing ones |
+| POST | `/api/v1/cards/<id>/tags/remove` | Remove specific tags |
 
-`--exclude_tags` comma-separated list of tags to exclude on download (default="nonenglish")
+**Quick example — score a card:**
+```bash
+curl -X PATCH \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"quality": 4.5, "story": 3.0}' \
+  http://localhost:1488/api/v1/cards/6194250
+```
 
-`--sorting` what sorting method to use when downloading list of cards (default=last_activity_at). Options: download_count, id, rating, default, rating_count, last_activity_at, trending_downloads, n_favorites, created_at, star_count, msgs_chat, msgs_user, chats_user, name, timeline, n_tokens, random, trending, newcomer, favorite_time, ai_rating
+See `/api/docs` for the full endpoint reference and curl examples.
 
-`--allow_nsfw` whether to include NSFW items in the result (default=true)
+---
 
-`--allow_nsfl` whether to include NSFL items in the result (default=true)
+## Database
 
-`--min_tokens` the minimum total token count of the card (default=250)
+Cards live as JSON + PNG files in `static/`. The SQLite database (`cards.db`) stores everything else:
 
-`--max_tokens` the maximum total token count of the card (default=128000)
+| Table | Purpose |
+|-------|---------|
+| `cards` + `card_tags` | Searchable card index mirrored from JSON files |
+| `tag_metadata` | Tag favourites, bans, and merge mappings |
+| `card_scores` | Quality / Lewdity / Story scores per card |
+| `settings` | Auth credentials, API token, Flask session key |
 
-`--include_forks` whether to download forks or only root cards (default=false)
+**The app reads card content directly from JSON files** — `cards.db` is never the source of truth for card data. Deleting `cards.db` loses only your scores, tag config, and auth settings; the cards themselves remain intact in `static/`.
 
-`--require_expressions` whether to require an expression pack (default=false)
+### Auto-population on startup
 
-`--require_lore_embedded` whether to require either an embedded lorebook (default=false)
+If `cards.db` does not exist but `static/` contains JSON + PNG files, the app automatically runs a full migration on startup — no manual step needed. Just start `localchub.py` and the database is built from your existing files.
 
-To show help run:
+### migrate.py
 
-`python localchub.py -h`
+```bash
+python migrate.py              # Rebuild cards/card_tags tables from all JSONs in static/
+python migrate.py --sync       # Incremental — only new/updated JSONs
+python migrate.py --merge other.db   # Merge another cards.db into a new database_merged.db
+```
+
+**Merge behaviour:** cards are merged by `lastActivityAt` (newer wins). Card scores and tag metadata from the source are merged in for any card/tag not already present in the destination. Auth credentials and other settings are intentionally excluded from the merge (they are instance-specific).
+
+---
+
+## Commands
+
+```
+python localchub.py --autoupdate 300 --min_tokens 200
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--autoupdate N` | 30000s | Auto-sync interval in seconds |
+| `--synctags` | off | Overwrite local tags from API on sync |
+| `--backup` | off | Copy old files to `/backup` before updating |
+| `--min_tags N` | 0 | Minimum tag count for a card to be saved |
+| `--include_tags` | "" | Only download cards with these tags (comma-separated) |
+| `--exclude_tags` | "nonenglish" | Skip cards with these tags |
+| `--sorting` | last_activity_at | Sort method for the download list |
+| `--allow_nsfw` | true | Include NSFW cards |
+| `--allow_nsfl` | true | Include NSFL cards |
+| `--min_tokens` | 250 | Minimum card token count |
+| `--max_tokens` | 128000 | Maximum card token count |
+| `--include_forks` | false | Download forked cards too |
+| `--require_expressions` | false | Require expression pack |
+| `--require_lore_embedded` | false | Require embedded lorebook |
+
+Run `python localchub.py -h` for the full list.

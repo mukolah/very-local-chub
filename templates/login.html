@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Local Chub — Login</title>
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background: #1a1a1a; color: #e0e0e0; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+        .card { background: #2a2a2a; border-radius: 12px; padding: 40px; width: min(380px, 94vw); box-shadow: 0 8px 32px rgba(0,0,0,.55); }
+        h1 { margin: 0 0 6px; font-size: 24px; }
+        .subtitle { color: #888; font-size: 14px; margin: 0 0 28px; }
+        label { display: block; margin-bottom: 5px; font-size: 13px; color: #aaa; }
+        input[type=text], input[type=password] { width: 100%; padding: 10px 12px; border-radius: 6px; border: 1px solid #444; background: #1a1a1a; color: #e0e0e0; font-size: 15px; margin-bottom: 18px; outline: none; transition: border-color .15s; }
+        input:focus { border-color: #007bff; }
+        .btn-primary { width: 100%; padding: 12px; background: #007bff; color: #fff; border: none; border-radius: 6px; font-size: 15px; cursor: pointer; transition: background .15s; }
+        .btn-primary:hover { background: #0056b3; }
+        .error { color: #ff6b6b; font-size: 13px; margin-bottom: 14px; padding: 8px 12px; background: rgba(255,80,80,.1); border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>Local Chub</h1>
+        <p class="subtitle">Sign in to continue.</p>
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}<div class="error">{{ messages[0] }}</div>{% endif %}
+        {% endwith %}
+        <form method="post" action="/login">
+            <label for="username">Username</label>
+            <input type="text" id="username" name="username" required autocomplete="username" autofocus>
+            <label for="password">Password</label>
+            <input type="password" id="password" name="password" required autocomplete="current-password">
+            <button type="submit" class="btn-primary">Sign in</button>
+        </form>
+    </div>
+</body>
+</html>

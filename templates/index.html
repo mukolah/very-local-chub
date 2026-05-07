@@ -1,1294 +1,187 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
+    <meta charset="utf-8">
     <title>Local Chub</title>
     <meta http-equiv="Content-Security-Policy" content="
-  default-src 'self' http://127.0.0.1:*;
-  img-src 'self' http://127.0.0.1:*;
-  script-src 'self' http://127.0.0.1:* 'unsafe-inline';
-  style-src 'self' http://127.0.0.1:* 'unsafe-inline';
-  font-src 'self' http://127.0.0.1:*;
-  connect-src 'self' http://127.0.0.1:*;">
-    <link rel='icon' type='image/x-icon' href='/static/favicon.ico'>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            font-size: 18px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            margin: 0;
-            padding: 0;
-        }
-
-        body.light-mode {
-            background-color: #fff;
-            color: #000;
-        }
-
-        body.dark-mode {
-            background-color: #222;
-            color: #fff;
-        }
-
-        a {
-            text-decoration: none;
-            color: inherit;
-            cursor: pointer;
-        }
-
-        a:hover {
-            color: #808080;
-        }
-
-        .card-container {
-            border: 1px solid #ccc;
-            padding: 10px;
-            margin: 10px;
-            width: 300px;
-            max-height: 620px;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            align-items: center;
-            overflow: auto;
-            position: relative;
-            border-radius: 8px;
-        }
-
-        .card-image {
-            max-width: 100%;
-            max-height: 300px;
-            object-fit: contain;
-            border-radius: 8px;
-        }
-
-        .card-content {
-            flex: 1;
-            text-align: center;
-            word-wrap: break-word;
-            word-break: break-word;
-            overflow-wrap: break-word;
-            padding: 10px;
-            overflow-y: auto;
-        }
-
-        .card-content h3,
-        .card-content p {
-            margin: 8px 0;
-            max-height: 100px;
-            overflow-y: auto;
-        }
-
-        .card-content h3,
-        .card-content p#tagline {
-            font-size: 13px;
-        }
-
-        .card-content h3,
-        .card-content p#tags {
-            font-size: 13px;
-        }
-
-        .cards-container {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
-            position: relative;
-        }
-
-        .pagination {
-            text-align: center;
-            margin: 20px;
-        }
-
-        .pagination a {
-            display: inline-block;
-            padding: 5px 10px;
-            margin: 5px;
-            border: 1px solid #ccc;
-            text-decoration: none;
-            border-radius: 5px;
-        }
-
-        .pagination .disabled {
-            pointer-events: none;
-            color: #999;
-        }
-
-        .download-btn {
-            background-color: #a9a9a9a9;
-            padding: 8px 24px;
-            border: none;
-            cursor: pointer;
-            font-size: 14px;
-            border-radius: 6px;
-        }
-
-        .download-btn:hover {
-            background-color: #999;
-        }
-
-        .search-container {
-            position: relative;
-            display: flex;
-            align-items: center;
-            width: 100%;
-            max-width: 500px;
-            padding: 0 10px;
-            box-sizing: border-box;
-            background-color: #f5f5f5;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        }
-
-        .search-container form {
-            flex: 1;
-            display: flex;
-            align-items: center;
-        }
-
-        .search-container input[type='text'] {
-            font-size: 16px;
-            padding: 10px;
-            flex: 1;
-            min-width: 0;
-            border: none;
-            background-color: transparent;
-            outline: none;
-        }
-
-        .search-container button {
-            font-size: 16px;
-            padding: 10px 20px;
-            border: none;
-            background-color: #007bff;
-            color: white;
-            border-radius: 6px;
-            cursor: pointer;
-            margin-left: 10px;
-        }
-
-        .search-container button:hover {
-            background-color: #0056b3;
-        }
-
-        .search-type {
-            font-size: 16px;
-            padding: 10px;
-            border: none;
-            background-color: #e9ecef;
-            border-radius: 6px;
-            margin-left: 10px;
-            cursor: pointer;
-        }
-
-        .search-liner {
-            display: inline-flex;
-        }
-
-        /* Media queries for responsiveness */
-
-        /* For smaller screens like mobile phones */
-        @media (max-width: 767px) {
-            .card-container {
-                width: 100%;
-                /* Cards take full width on smaller screens */
-            }
-
-            .dark-mode-toggle {
-                position: fixed;
-                top: 10px;
-                right: 10px;
-                font-size: 24px;
-                cursor: pointer;
-            }
-        }
-
-        /* For larger screens like laptops and PCs */
-        @media (min-width: 768px) {
-            .search-container {
-                max-width: 800px;
-                /* Limit the width of the search bar container for larger screens */
-            }
-
-            .dark-mode-toggle {
-                font-size: 24px;
-                cursor: pointer;
-            }
-        }
-
-        .dark-mode-toggle {
-            background-color: transparent;
-            border: none;
-            outline: none;
-        }
-
-        .dark-mode-toggle::selection {
-            background-color: transparent;
-        }
-
-        .dark-mode-toggle::before {
-            content: '🌓︎';
-        }
-
-        body.dark-mode .search-container input[type='text']::selection,
-        body.dark-mode .search-container input[type='text']::-moz-selection {
-            background-color: #a9a9a9a9;
-            color: #fff;
-        }
-
-        .lightbox {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.9);
-            justify-content: center;
-            align-items: center;
-            backdrop-filter: blur(6px);
-        }
-
-        .lightbox-content {
-            display: flex;
-            flex-direction: row;
-            justify-content: center;
-            max-width: 80%;
-            max-height: 80%;
-        }
-
-        .lightbox-image {
-            max-width: 50%;
-            max-height: 100%;
-            object-fit: contain;
-            margin-right: 20px;
-        }
-
-        .lightbox-description {
-            flex: 1;
-            overflow-y: scroll;
-            color: #fff;
-        }
-
-        /* Webkit-based browsers */
-        .lightbox-description::-webkit-scrollbar {
-            width: 0.1em;
-            /* Set a very thin width for the scrollbar */
-        }
-
-        /* Webkit-based browsers */
-        .lightbox-description::-webkit-scrollbar-thumb {
-            background-color: transparent;
-            /* Make the scrollbar thumb invisible */
-        }
-
-        #progress {
-            font-size: 18px;
-            margin-bottom: 5px;
-        }
-
-        #currentCardName {
-            font-size: 16px;
-        }
-
-        .delete-card-button {
-            position: absolute;
-            top: 5px;
-            right: 5px;
-            background-color: #a9a9a9a9;
-            color: #fff;
-            border: none;
-            font-size: 16px;
-            padding: 3px 6px;
-            cursor: pointer;
-            visibility: hidden;
-            z-index: 1;
-            border-radius: 5px;
-        }
-
-        .action-button {
-            position: absolute;
-            top: 5px;
-            font-size: 16px;
-            background-color: #a9a9a9a9;
-            color: #fff;
-            border: none;
-            padding: 3px 6px;
-            cursor: pointer;
-            visibility: hidden;
-            z-index: 1;
-            width: 10%;
-        }
-
-        .edit-tags-button {
-            left: 5px;
-            background-color: #a9a9a9a9;
-            color: #fff;
-            border-radius: 5px;
-        }
-
-        .copy-json-button {
-            left: 5px;
-            top: 35px;
-            background-color: #a9a9a9a9;
-            color: #fff;
-            border-radius: 5px;
-        }
-
-        .open-new-tab-button {
-            left: 5px;
-            top: 65px;
-            background-color: #a9a9a9a9;
-            color: #fff;
-            border-radius: 5px;
-        }
-
-        .edit-tags-container {
-            position: absolute;
-            top: 4px;
-            display: none;
-        }
-
-        .edit-tags-input {
-            font-size: 16px;
-            padding: 3px;
-            border-radius: 5px;
-            width: 180px;
-        }
-
-        .save-tags-button {
-            background-color: #a9a9a9a9;
-            color: #fff;
-            padding: 4px 10px;
-            cursor: pointer;
-            border-radius: 6px;
-            border: none;
-            border-color: #222;
-        }
-
-        #sidebar {
-            display: flex;
-            flex-direction: column;
-            position: fixed;
-            bottom: 20px;
-            right: 30px;
-            z-index: 99;
-        }
-
-        .sidebar-container {
-            background-color: #a9a9a9a9;
-            color: #fff;
-            border: none;
-            outline: none;
-            cursor: pointer;
-            padding: 15px;
-            border-radius: 8px;
-            font-size: 16px;
-            margin-bottom: 5px;
-        }
-
-        div#card {
-            max-height: 620px;
-        }
-
-        .sidebar-container:hover {
-            background-color: #999;
-        }
-
-        .tags-container {
-            display: none;
-            flex-wrap: wrap;
-            justify-content: center;
-        }
-
-        /* Show tags when the "show-tags" class is added */
-        .tags-container.show-tags {
-            display: flex;
-        }
-
-        /* Style the new toggle button */
-        #tagsToggle {
-            font-weight: bold;
-            font-size: 18px;
-        }
-
-        .tag-container {
-            border: 1px solid #ccc;
-            padding: 10px;
-            margin: 5px;
-            border-radius: 8px;
-        }
-
-        .tag-container p {
-            margin: 0;
-        }
-
-        /* Modern scrollbar styling */
-        p#tags,
-        p#tagline,
-        p#description {
-            overflow-y: auto;
-            max-height: 100px;
-            scrollbar-width: thin;
-            /* For Firefox */
-            scrollbar-color: #888 #f1f1f1;
-            /* For Firefox */
-        }
-
-        /* Webkit-based browsers (Chrome, Safari) */
-        p#tags::-webkit-scrollbar,
-        p#tagline::-webkit-scrollbar,
-        p#description::-webkit-scrollbar {
-            width: 8px;
-        }
-
-        p#tags::-webkit-scrollbar-track,
-        p#tagline::-webkit-scrollbar-track,
-        p#description::-webkit-scrollbar-track {
-            background: #f1f1f1;
-            border-radius: 4px;
-        }
-
-        p#tags::-webkit-scrollbar-thumb,
-        p#tagline::-webkit-scrollbar-thumb,
-        p#description::-webkit-scrollbar-thumb {
-            background: #888;
-            border-radius: 4px;
-        }
-
-        p#tags::-webkit-scrollbar-thumb:hover,
-        p#tagline::-webkit-scrollbar-thumb:hover,
-        p#description::-webkit-scrollbar-thumb:hover {
-            background: #555;
-        }
-
-        .autocomplete-dropdown {
-            position: absolute;
-            top: 100%;
-            left: 0;
-            width: 300px;
-            background-color: #222222;
-            border: 1px solid #ccc;
-            max-height: 200px;
-            overflow-y: auto;
-            display: none;
-            z-index: 1000;
-            color: white;
-        }
-
-        .autocomplete-dropdown div {
-            padding: 8px;
-            font-size: 14px;
-            cursor: pointer;
-        }
-
-        .autocomplete-dropdown div:hover {
-            background-color: #444444;
-        }
-
-        #searchInput {
-            width: 300px;
-            padding: 10px;
-            font-size: 16px;
-        }
-
-        .card-content h3 {
-            font-size: 20px;
-        }
-    </style>
+        default-src 'self' http://127.0.0.1:*;
+        img-src 'self' http://127.0.0.1:*;
+        script-src 'self' http://127.0.0.1:* 'unsafe-inline';
+        style-src 'self' http://127.0.0.1:*;
+        font-src 'self' http://127.0.0.1:*;
+        connect-src 'self' http://127.0.0.1:*;">
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+    <link rel="stylesheet" href="/assets/index.css">
 </head>
 
-<body class='light-mode'>
-    <h1><a href='/?page=1'>Local Chub</a></h1>
-    <div class="search-liner">
-        <div class="search-container">
-            <form action='/' method='get'>
-                <input type='text' id="searchInput" name='query'
-                    placeholder='Use commas to separate queries, use minus to exclude, e.g. -rpg'
-                    value="{{ request.args.get('query', '') }}" autocomplete='off' id="searchInput">
-                <select name='type' id='searchtype' class='search-type'>
-                    <option value='basic'>Basic</option>
-                    <option value='tag'>Tag</option>
-                    <option value='title'>Title</option>
-                    <option value='author'>Author</option>
-                    <option value='random'>Random</option>
-                </select>
-                <button type='submit'>Search</button>
-            </form>
-            <!-- Autocomplete dropdown -->
-            <div id="autocompleteDropdown" class="autocomplete-dropdown"></div>
-        </div>
-        <!-- Sorting Dropdown -->
-        <div class="sort-dropdown">
-            <label for="sort"></label>
-            <select name="sort" id="sort" class="search-type" onchange="handleSortChange(event)">
-                <option value="createdAt">Sort: Card Created</option>
-                <option value="lastActivityAt">Sort: Card Updated</option>
-            </select>
+{# Renders a single card card — used by both the search-results and all-cards loops #}
+{% macro render_card(card) %}
+<div class="card-container" id="card-{{ card.id }}" onmouseenter="showButtons(this)" onmouseleave="hideButtons(this)">
+    <button class="action-button delete-card-button" onclick='deleteCard("{{ card.id }}")' title="Delete card">🗙</button>
+    <button class="action-button edit-tags-button" onclick="showEditTags(this, '{{ ','.join(card.topics) }}')" title="Edit tags">✎</button>
+    <div class="edit-tags-container">
+        <input type="text" class="edit-tags-input">
+        <button class="save-tags-button" onclick='saveTags("{{ card.id }}")'>Save</button>
+    </div>
+    <button class="action-button copy-json-button" onclick="copyJSON('{{ card.id }}', this)" title="Copy JSON">📋</button>
+    <button class="action-button open-new-tab-button" onclick="openInNewTab('{{ card.id }}')" title="Open in new tab">↗️</button>
+    <button class="action-button rate-btn rate-quality-btn" onclick="toggleRatingWidget('quality','{{ card.id }}')" title="Rate quality">⭐</button>
+    <div class="rating-widget rating-quality-widget" data-card="{{ card.id }}" data-type="quality"><span class="rating-star">⭐</span><span class="rating-star">⭐</span><span class="rating-star">⭐</span><span class="rating-star">⭐</span><span class="rating-star">⭐</span><span class="rating-clear-btn">🗙</span></div>
+    <button class="action-button rate-btn rate-lewdity-btn" onclick="toggleRatingWidget('lewdity','{{ card.id }}')" title="Rate lewdity">🍑</button>
+    <div class="rating-widget rating-lewdity-widget" data-card="{{ card.id }}" data-type="lewdity"><span class="rating-star">🍑</span><span class="rating-star">🍑</span><span class="rating-star">🍑</span><span class="rating-star">🍑</span><span class="rating-star">🍑</span><span class="rating-clear-btn">🗙</span></div>
+    <button class="action-button rate-btn rate-story-btn" onclick="toggleRatingWidget('story','{{ card.id }}')" title="Rate story">📖</button>
+    <div class="rating-widget rating-story-widget" data-card="{{ card.id }}" data-type="story"><span class="rating-star">📖</span><span class="rating-star">📖</span><span class="rating-star">📖</span><span class="rating-star">📖</span><span class="rating-star">📖</span><span class="rating-clear-btn">🗙</span></div>
+    <img src="{{ card.imagePath }}" alt="{{ card.name }}" class="card-image" title="Click for details">
+    <div class="card-content">
+        <h3 title="{{ card.lastActivityAt }}">{{ card.name }}</h3>
+        {% if card.quality_bar or card.lewdity_bar or card.story_bar %}<div class="card-scores">{{ [card.quality_bar, card.lewdity_bar, card.story_bar] | select | join(' | ') | safe }}</div>{% endif %}
+        <p class="card-meta">
+            by <a href="?query={{ card.author }}&type=author" title="Browse all cards by {{ card.author }}">{{ card.author }}</a>
+            | {{ card.tokenCount }} tokens
+        </p>
+        <p class="card-dates">
+            <span title="Created by Author date/time">⚒ {{ card.createdAt }}</span>
+            | <span title="Last update by Author date/time">🗘 {{ card.lastActivityAt }}</span>
+        </p>
+        <button class="download-btn" onclick='downloadImage("{{ card.imagePath }}", "{{ card.name }}")'>Download</button>
+        {% if card.topics %}
+        <p id="tags"><i>Tags: {% for topic in card.topics %}<a href="?query={{ topic }}&type=tag" title="Browse other cards tagged with {{ topic }}">{{ topic }}</a>{% if not loop.last %}, {% endif %}{% endfor %}</i></p>
+        {% endif %}
+        <div id="descr">
+            {% if card.tagline|length > 1 %}<p id="tagline">{{ card.tagline }}</p>{% endif %}
+            {% if card.description|length > 1 %}<p id="description">{{ card.description }}</p>{% endif %}
         </div>
     </div>
+</div>
+{% endmacro %}
 
-    {% if search_results %}
-    <h2>Search Results ({{ count }} results)</h2>
-    {% else %}
-    <h2>All Cards ({{ count }}) </h2>
-    {% endif %}
+<body class="light-mode">
+    <div class="topbar">
+        <a href="/?page=1" class="brand">Local Chub</a>
+        <div class="search-liner">
+            <div class="search-container">
+                <form action="/" method="get">
+                    <input type="text" id="searchInput" name="query"
+                        placeholder="Use commas to separate queries, use minus to exclude, e.g. -rpg"
+                        value="{{ request.args.get('query', '') }}" autocomplete="off">
+                    <select name="type" id="searchtype" class="search-type">
+                        <option value="basic">Basic</option>
+                        <option value="tag">Tag</option>
+                        <option value="title">Title</option>
+                        <option value="author">Author</option>
+                        <option value="random">Random</option>
+                    </select>
+                    <button type="submit">Search</button>
+                </form>
+                <div id="autocompleteDropdown" class="autocomplete-dropdown"></div>
+            </div>
+            <div class="sort-dropdown">
+                <label for="sort"></label>
+                <select name="sort" id="sort" class="search-type">
+                    <option value="createdAt">Sort: Card Created</option>
+                    <option value="lastActivityAt">Sort: Card Updated</option>
+                </select>
+            </div>
+        </div>
+        <span class="card-count">
+            {% if search_results %}{{ count }} results{% else %}{{ count }} Cards{% endif %}
+        </span>
+    </div>
 
     {% if random_tags %}
-    <div class='tags-container'>
+    <div class="tags-container">
         {% for tag in random_tags %}
-        <div class='tag-container'>
-            <p><a href='?query={{ tag }}&type=tag' title='Browse other cards tagged with {{ tag }}'>{{ tag }}</a></p>
+        <div class="tag-container">
+            <p><a href="?query={{ tag }}&type=tag" title="Browse other cards tagged with {{ tag }}">{{ tag }}</a></p>
         </div>
         {% endfor %}
     </div>
     {% endif %}
 
-    <div id="cards-container" class='cards-container'>
-        {% if search_results %}
-        {% for card in search_results %}
-        <div class='card-container' id='card-{{ card.id }}' onmouseenter='showButtons(this)'
-            onmouseleave='hideButtons(this)'>
-            <button class='action-button delete-card-button' onclick='deleteCard("{{ card.id }}")'
-                title='Delete card'>🗙</button>
-            <button class='action-button edit-tags-button' onclick="showEditTags(this, '{{ ','.join(card.topics) }}')"
-                title='Edit tags'>✎</button>
-            <div class='edit-tags-container' style='display: none;'>
-                <input type='text' class='edit-tags-input'>
-                <button class='save-tags-button' onclick='saveTags("{{ card.id }}")'>Save</button>
-            </div>
-            <button class='action-button copy-json-button' onclick="copyJSON('{{ card.id }}', this)"
-                title="Copy JSON">📋</button>
-            <button class='action-button open-new-tab-button' onclick="openInNewTab('{{ card.id }}')"
-                title="Open in new tab">↗️</button>
-            <img src='{{ card.imagePath }}' alt='{{ card.name }}' class='card-image' title='Click for details'>
-            <div class='card-content' style="max-height: 620px;">
-                <h3 title='{{ card.lastActivityAt }}'
-                    onclick="showLightbox('{{ card.imagePath }}', '{{ card.description }}', '{{ card.id }}')">{{
-                    card.name }}</h3>
-                <p style="font-size: 13px;">
-                    by <a href='?query={{ card.author }}&type=author' title='Browse all cards by {{ card.author }}'>{{
-                        card.author }}</a> | {{ card.tokenCount }} tokens
-                </p>
-                <p style="font-size: 11px;"><span title="Created by Author date/time">⚒ {{ card.createdAt }}</span> |
-                    <span title="Last update by Author date/time">🗘 {{ card.lastActivityAt }}</span>
-                </p>
-                <button class='download-btn'
-                    onclick='downloadImage("{{ card.imagePath }}", "{{ card.name }}")'>Download</button>
-                {% if card.topics %}
-                <p id='tags'><i>Tags: {% for topic in card.topics %}<a href='?query={{ topic }}&type=tag'
-                            title='Browse other cards tagged with {{ topic }}'>{{ topic }}</a>{% if not loop.last %}, {%
-                        endif %}{% endfor %}</i></p>
-                {% endif %}
-                <p id='descr'>
-                    {% if card.tagline|length > 1 %}
-                <p id='tagline'>{{ card.tagline }}</p>
-                {% endif %}
-                {% if card.description|length > 1 %}
-                <p id='description'>{{ card.description }}</p>
-                {% endif %}
-                </p>
-            </div>
-        </div>
+    <div id="cards-container" class="cards-container">
+        {% for card in (search_results if search_results else cards) %}
+        {{ render_card(card) }}
         {% endfor %}
-        {% else %}
-        {% for card in cards %}
-        <!-- {% if card.tagline|length > 1 %} -->
-        <!-- {% if card.topics|length > 1 %} -->
-        <div class='card-container' id='card-{{ card.id }}' onmouseenter='showButtons(this)'
-            onmouseleave='hideButtons(this)'>
-
-            <button class='action-button delete-card-button' onclick='deleteCard("{{ card.id }}")'>🗙</button>
-            <button class='action-button edit-tags-button' onclick="showEditTags(this, '{{ ','.join(card.topics) }}')"
-                title='Edit tags'>✎</button>
-            <div class='edit-tags-container' style='display: none;'>
-                <input type='text' class='edit-tags-input'>
-                <button class='save-tags-button' onclick='saveTags("{{ card.id }}")'>Save</button>
-            </div>
-            <button class='action-button copy-json-button' onclick="copyJSON('{{ card.id }}', this)"
-                title="Copy JSON">📋</button>
-            <button class='action-button open-new-tab-button' onclick="openInNewTab('{{ card.id }}')"
-                title="Open in new tab">↗️</button>
-            <img src='{{ card.imagePath }}' alt='{{ card.name }}' class='card-image' title='Click for details'>
-            <div class='card-content' style="max-height: 620px;">
-                <h3 title='{{ card.lastActivityAt }}'
-                    onclick="showLightbox('{{ card.imagePath }}', '{{ card.description }}', '{{ card.id }}')">{{
-                    card.name }}</h3>
-                <p style="font-size: 13px;">
-                    by <a href='?query={{ card.author }}&type=author' title='Browse all cards by {{ card.author }}'>{{
-                        card.author }}</a> | {{ card.tokenCount }} tokens<br>
-                </p>
-                <p style="font-size: 11px;"><span title="Created by Author date/time">⚒ {{ card.createdAt }}</span> |
-                    <span title="Last update by Author date/time">🗘 {{ card.lastActivityAt }}</span>
-                </p>
-                <button class='download-btn'
-                    onclick='downloadImage("{{ card.imagePath }}", "{{ card.name }}")'>Download</button>
-                {% if card.topics %}
-                <p id='tags'><i>Tags: {% for topic in card.topics %}<a href='?query={{ topic }}&type=tag'
-                            title='Browse other cards tagged with {{ topic }}'>{{ topic }}</a>{% if not loop.last %}, {%
-                        endif %}{% endfor %}</i></p>
-                {% endif %}
-                <p id='descr'>
-                    {% if card.tagline|length > 1 %}
-                <p id='tagline'>{{ card.tagline }}</p>
-                {% endif %}
-                {% if card.description|length > 1 %}
-                <p id='description'>{{ card.description }}</p>
-                {% endif %}
-                </p>
-            </div>
-        </div>
-        <!-- {% endif %} -->
-        <!-- {% endif %} -->
-        {% endfor %}
-        {% endif %}
     </div>
 
     {% if not search_results %}
-    <div class='pagination'>
+    <div class="pagination">
         {% if page > 1 %}
-        <a
-            href='?query={{ request.args.get("query", "") }}&type={{ request.args.get("type", "basic") }}&page={{ page - 1 }}'>&lt;
-            Previous</a>
+        <a href="?query={{ request.args.get('query', '') }}&type={{ request.args.get('type', 'basic') }}&page={{ page - 1 }}">&lt; Previous</a>
         {% endif %}
-
         Page {{ page }} of {{ total_pages }}
-
-        {% if page < total_pages %} <a
-            href='?query={{ request.args.get("query", "") }}&type={{ request.args.get("type", "basic") }}&page={{ page + 1 }}'>
-            Next &gt;</a>
-            {% endif %}
+        {% if page < total_pages %}
+        <a href="?query={{ request.args.get('query', '') }}&type={{ request.args.get('type', 'basic') }}&page={{ page + 1 }}">Next &gt;</a>
+        {% endif %}
     </div>
-
     {% else %}
     <br>
     {% endif %}
 
-    <div class='lightbox' id='lightbox'>
-        <div class='lightbox-content'>
-            <img src='' alt='Card Image' class='lightbox-image' id='lightboxImage'>
-            <div class='lightbox-description' id='lightboxDescription'></div>
+    <div class="lightbox" id="lightbox">
+        <div class="lightbox-content">
+            <img src="" alt="Card Image" class="lightbox-image" id="lightboxImage">
+            <div class="lightbox-description" id="lightboxDescription"></div>
         </div>
     </div>
 
     <div>
-        <button class='download-btn' onclick='syncCards();scrollToBottom()'>Update cards</button>
+        <button class="download-btn" onclick="syncCards();scrollToBottom()">Update cards</button>
     </div>
-
-    <div id='progress'></div>
-    <div id='currentCardName'></div>
+    <div id="progress"></div>
+    <div id="currentCardName"></div>
     <br>
 
-    <div id='sidebar'>
-        <button onclick='toggleTags()' class='sidebar-container' id='tagsToggle'
-            title='Toggle tags visibility'>T</button>
-        <button onclick='toggleBlur()' class='sidebar-container' id='nsfwToggle'
-            title='Toggle NSFW blurring'>😈</button>
-        <button onclick='toggleCompactMode()' class='sidebar-container' id='compactToggle'
-            title='Toggle compact mode'>⇳</button>
-        <button onclick='toggleDarkMode()' class='sidebar-container' id='darkModeToggle'
-            title='Toggle dark mode'>🌓︎</button>
-        <button onclick='scrollToTop()' class='sidebar-container' title='Scroll to top'>⬆</button>
-        <button onclick='scrollToBottom()' class='sidebar-container' title='Scroll to bottom'>⬇</button>
-
+    <div id="sidebar">
+        <button onclick="window.open('/api/docs','_blank')" class="sidebar-container" title="API Documentation">📡</button>
+        <button onclick="openTagManager()" class="sidebar-container" id="tagsToggle" title="Open Tag Manager">T</button>
+        <button onclick="toggleBlur()" class="sidebar-container" id="nsfwToggle" title="Toggle NSFW blurring">😈</button>
+        <button onclick="toggleCompactMode()" class="sidebar-container" id="compactToggle" title="Toggle compact mode">⇳</button>
+        <button onclick="toggleDarkMode()" class="sidebar-container" id="darkModeToggle" title="Toggle dark mode">🌓︎</button>
+        <button onclick="scrollToTop()" class="sidebar-container" title="Scroll to top">⬆</button>
+        <button onclick="scrollToBottom()" class="sidebar-container" title="Scroll to bottom">⬇</button>
     </div>
 
-
+    <!-- TAG MANAGER OVERLAY -->
+    <div id="tagManagerOverlay" class="tm-overlay">
+        <div class="tm-panel">
+            <div class="tm-header">
+                <h2>Tag Manager</h2>
+                <button class="tm-close-btn" onclick="closeTagManager()">✕</button>
+            </div>
+            <div class="tm-controls">
+                <input type="text" id="tmSearch" placeholder="Filter tags..." autocomplete="off" oninput="tmFilterTags()">
+                <label class="tm-toggle-label">
+                    <input type="checkbox" id="tmShowBanned" onchange="tmFilterTags()"> Show banned
+                </label>
+                <label class="tm-toggle-label">
+                    <input type="checkbox" id="tmShowMerged" onchange="tmFilterTags()"> Show merged
+                </label>
+            </div>
+            <div id="tmMergeBar" class="tm-merge-bar" style="display:none;">
+                <span id="tmMergeCount">0 selected</span>
+                <div class="tm-merge-target-wrap">
+                    <input type="text" id="tmMergeTarget" placeholder="Merge INTO this tag..."
+                        oninput="tmMergeTargetInput(this.value)" onkeydown="tmMergeTargetKeydown(event)" autocomplete="off">
+                    <div id="tmMergeDropdown" class="tm-merge-dropdown" style="display:none;"></div>
+                </div>
+                <button onclick="tmExecuteMerge()">Merge</button>
+                <button onclick="tmClearSelection()">Clear</button>
+            </div>
+            <div id="tmTagList" class="tm-tag-list">
+                <div class="tm-loading">Loading tags...</div>
+            </div>
+        </div>
+    </div>
 
     <script>
-        const darkModePref = localStorage.getItem('darkMode');
-
-        if (darkModePref === 'true') {
-            document.body.classList.add('dark-mode');
-            document.body.classList.remove('light-mode');
-        }
-
-        function toggleDarkMode() {
-            const body = document.body;
-            body.classList.toggle('dark-mode');
-            body.classList.toggle('light-mode');
-
-            const isDarkMode = body.classList.contains('dark-mode');
-            localStorage.setItem('darkMode', isDarkMode.toString());
-        }
-
-        let blurNSFW = localStorage.getItem('blurNSFW') === 'true';
-
-        function updateNSFWToggle() {
-            const toggleButton = document.getElementById('nsfwToggle');
-            if (toggleButton) {
-                toggleButton.innerHTML = blurNSFW ? '😇' : '😈';
-            }
-        }
-
-        function toggleBlur() {
-            blurNSFW = !blurNSFW;
-            applyBlurringPreference();
-            updateNSFWToggle();
-            localStorage.setItem('blurNSFW', blurNSFW);
-        }
-
-        function applyBlurringPreference() {
-            const cardContainers = document.querySelectorAll('.card-container');
-
-            cardContainers.forEach(cardContainer => {
-                const tagsLinks = cardContainer.querySelectorAll('#tags a');
-                const containsNSFW = Array.from(tagsLinks).some(tagLink => tagLink.textContent.trim() === 'NSFW');
-                const cardImage = cardContainer.querySelector('.card-image');
-
-                if (!cardImage) {
-                    return;
-                }
-
-                cardImage.style.filter = blurNSFW && containsNSFW ? 'blur(12px)' : 'none';
-            });
-        }
-
-        applyBlurringPreference();
-
-        function downloadImage(imagePath, cardName) {
-            let cardId = imagePath.split('/').pop().split('.').shift();
-            let filename = cardName.replace(' ', '_') + '_' + cardId + '.png';
-            fetch(imagePath)
-                .then(response => response.blob())
-                .then(blob => {
-                    let newBlob = new Blob([blob], { type: 'image/png' });
-                    let url = URL.createObjectURL(newBlob);
-                    let link = document.createElement('a');
-                    link.href = url;
-                    link.download = filename;
-                    link.click();
-                    URL.revokeObjectURL(url);
-                })
-                .catch(error => {
-                    console.error('Error fetching the image:', error);
-                });
-        }
-
-        function escapeRegExp(str) {
-            return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        }
-
-        function highlightSearchResults() {
-            const searchQuery = "{{ request.args.get('query') }}";
-            const highlightColor = '#a9a9a9a9';
-            const tagQueries = searchQuery.trim().split(',').map(query => query.trim());
-            const tagRegex = new RegExp(tagQueries.map(escapeRegExp).join('|'), 'gi');
-            const cardContainers = document.querySelectorAll('.card-container');
-
-            cardContainers.forEach(cardContainer => {
-                const elementsToHighlight = cardContainer.querySelectorAll(
-                    '.card-content i a, .card-content h3, .card-content #descr, #description, #tagline'
-                );
-
-                elementsToHighlight.forEach(element => {
-                    element.innerHTML = element.textContent.replace(
-                        tagRegex,
-                        match => `<span style="background-color: ${highlightColor};">${match}</span>`
-                    );
-                });
-            });
-        }
-
-        highlightSearchResults();
-        // Lightbox
-        const lightbox = document.getElementById('lightbox');
-        const lightboxImage = document.getElementById('lightboxImage');
-        const lightboxDescription = document.getElementById('lightboxDescription');
-
-        function showLightbox(imagePath, description) {
-            lightboxImage.src = imagePath;
-            lightboxDescription.innerHTML = '';
-
-            function isNonEmpty(value) {
-                return value !== null && value !== '' && value !== undefined && value !== 'none' && value.length > 0;
-            }
-
-            const cardId = imagePath.split('/').pop().split('.').shift();
-            fetch(`/get_png_info/${cardId}`)
-                .then(response => response.json())
-                .then(data => {
-                    for (const [key, value] of Object.entries(data.data)) {
-                        if (isNonEmpty(value)) {
-                            lightboxDescription.innerHTML += `<h2>${key.replace(/_/g, ' ').toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}:</h2> ${value}<br>`;
-                        }
-                    }
-                    lightbox.style.display = 'flex';
-                })
-                .catch(error => {
-                    console.error('Error fetching PNG info:', error);
-                });
-        }
-
-        function hideLightbox() {
-            lightbox.style.display = 'none';
-        }
-
-        const cardContainers = document.querySelectorAll('.card-container');
-        cardContainers.forEach(cardContainer => {
-            const cardImage = cardContainer.querySelector('.card-image');
-            const cardTitle = cardContainer.querySelector('.card-content h3');
-
-            cardImage.addEventListener('click', () => {
-                const cardDescription = cardContainer.querySelector('.card-content #descr').textContent;
-                showLightbox(cardImage.src, cardDescription);
-            });
-
-            cardTitle.addEventListener('click', () => {
-                const cardDescription = cardContainer.querySelector('.card-content #descr').textContent;
-                showLightbox(cardImage.src, cardDescription);
-            });
-        });
-
-        lightbox.addEventListener('click', (event) => {
-            if (event.target === lightbox || event.target === lightboxImage || event.target === lightboxDescription) {
-                hideLightbox();
-            }
-        });
-
-        function updProgress(progress, currentCardName, newCardsCount) {
-            const progressElement = document.getElementById('progress');
-            const cardNameElement = document.getElementById('currentCardName');
-
-            progressElement.innerText = `\nSyncing progress: ${progress.toFixed(2)}%`;
-            cardNameElement.innerText = `Current Card: ${currentCardName}`;
-
-            if (progress >= 100) {
-                const alertMessage = newCardsCount > 0
-                    ? `Syncing completed! ${newCardsCount} cards have been added/updated.`
-                    : 'Syncing completed! No cards have been added/updated.';
-                alert(alertMessage);
-                window.location.reload(); window.scrollTo(0, 0);
-            }
-        }
-
-        function syncCards() {
-            updProgress(0, '', 0);
-
-            const eventSource = new EventSource('/sync');
-            eventSource.onmessage = function (event) {
-                const response = JSON.parse(event.data);
-                const progress = response.progress;
-                const currentCardName = response.currCard;
-                const newCardsCount = response.newCards;
-                updProgress(progress, currentCardName, newCardsCount);
-
-                if (progress >= 100) {
-                    eventSource.close();
-                }
-            };
-
-            eventSource.onerror = function () {
-                alert('Error syncing cards. Please try again later.');
-                eventSource.close();
-            };
-        }
-
-        function showButtons(cardContainer) {
-            const actionButtons = cardContainer.querySelectorAll('.action-button');
-            actionButtons.forEach(button => {
-                button.style.visibility = 'visible';
-            });
-        }
-
-        function hideButtons(cardContainer) {
-            const actionButtons = cardContainer.querySelectorAll('.action-button');
-            actionButtons.forEach(button => {
-                button.style.visibility = 'hidden';
-            });
-            hideEditTags(cardContainer);
-        }
-
-        function showEditTags(editButton, existingTags) {
-            const cardContainer = editButton.closest('.card-container');
-            const editTagsContainer = cardContainer.querySelector('.edit-tags-container');
-            const editTagsInput = cardContainer.querySelector('.edit-tags-input');
-            editTagsInput.value = existingTags;
-            editTagsContainer.style.display = 'flex';
-        }
-
-        function hideEditTags(cardContainer) {
-            const editTagsContainer = cardContainer.querySelector('.edit-tags-container');
-            editTagsContainer.style.display = 'none';
-        }
-
-        function deleteCard(cardId) {
-            if (confirm('Are you sure you want to delete this card?')) {
-                fetch(`/delete_card/${cardId}`, { method: 'DELETE' })
-                    .then(response => {
-                        if (response.status === 200) {
-                            const cardContainer = document.getElementById(`card-${cardId}`);
-                            if (cardContainer) {
-                                cardContainer.remove();
-                            }
-                            alert('Card deleted successfully');
-                        } else {
-                            alert('Error deleting the card. Please try again later.');
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error deleting the card:', error);
-                        alert('Error deleting the card. Please try again later.');
-                    });
-            }
-        }
-
-        function saveTags(cardId) {
-            const editTagsContainer = document.getElementById(`card-${cardId}`).querySelector('.edit-tags-container');
-            const tagsInput = editTagsContainer.querySelector('.edit-tags-input');
-            const tags = tagsInput.value.trim();
-            fetch(`/edit_tags/${cardId}`, {
-                method: 'POST',
-                body: new URLSearchParams({ tags }),
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            })
-                .then(response => {
-                    if (response.status === 200) {
-                        editTagsContainer.style.display = 'none';
-                        const tagsParagraph = editTagsContainer.previousElementSibling;
-                        tagsParagraph.innerHTML = `<i>Tags: ${tags.split(',').map(tag => `<a href='?query=${tag.trim()}'>${tag.trim()}</a>`).join(', ')}</i>`;
-                        alert('Tags updated successfully');
-                    } else {
-                        alert('Error updating tags. Please try again later.');
-                    }
-                })
-                .catch(error => {
-                    console.error('Error updating tags:', error);
-                    alert('Error updating tags. Please try again later.');
-                });
-        }
-
-        function copyJSON(cardId, button) {
-            fetch('/get_png_info/' + cardId)
-                .then(response => response.json())
-                .then(data => {
-                    const cardInfoDataString = JSON.stringify(data, null, 4);
-                    navigator.clipboard.writeText(cardInfoDataString)
-                        .then(() => {
-                            button.innerHTML = '✓';
-                            setTimeout(function () {
-                                button.innerHTML = '📋';
-                            }, 2000);
-                        })
-                        .catch(error => {
-                            console.error('Failed to copy JSON: ', error);
-                        });
-                });
-        }
-
-        function scrollToTop() {
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
-
-        function scrollToBottom() {
-            window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
-        }
-
-        const urlParams = new URLSearchParams(window.location.search);
-        const typeParam = urlParams.get('type');
-        if (typeParam) {
-            document.querySelector('#searchtype [value="' + typeParam + '"]').selected = true;
-        }
-
-        function applyCompactModePreference() {
-            const compactModePref = localStorage.getItem('compactMode') === 'true';
-            const cardContainers = document.querySelectorAll('.card-container');
-
-            cardContainers.forEach(cardContainer => {
-                const description = cardContainer.querySelector('.card-content #description');
-                if (description) {
-                    description.style.display = compactModePref ? 'none' : 'block';
-                }
-            });
-        }
-
-        function toggleCompactMode() {
-            const compactModePref = localStorage.getItem('compactMode') === 'true';
-            const cardContainers = document.querySelectorAll('.card-container');
-
-            cardContainers.forEach(cardContainer => {
-                const description = cardContainer.querySelector('.card-content #description');
-                if (description) {
-                    description.style.display = compactModePref ? 'block' : 'none';
-                }
-            });
-
-            localStorage.setItem('compactMode', compactModePref ? 'false' : 'true');
-        }
-
-        applyCompactModePreference();
-
-        let currentPage = 1;
-        let totalPages = {{ total_pages }};  // Set from Flask
-        let isLoading = false;
-
-        function loadMoreCards() {
-            if (isLoading || currentPage >= totalPages) return;
-
-            isLoading = true;
-            currentPage++;
-
-            let query = new URLSearchParams(window.location.search).get("query") || "";
-            let type = new URLSearchParams(window.location.search).get("type") || "basic";
-            let url = `/load_more?page=${currentPage}&query=${query}&type=${type}`;
-
-            fetch(url)
-                .then(response => response.json())
-                .then(data => {
-                    let container = document.getElementById("cards-container");
-
-                    data.cards.forEach(card => {
-                        let cardDiv = document.createElement("div");
-                        cardDiv.classList.add("card-container");
-                        cardDiv.id = `card-${card.id}`;
-                        cardDiv.setAttribute('onmouseenter', 'showButtons(this)');
-                        cardDiv.setAttribute('onmouseleave', 'hideButtons(this)');
-
-                        // Add the full HTML structure for each card
-                        cardDiv.innerHTML = `
-                    <button class='action-button delete-card-button' onclick='deleteCard("${card.id}")' title='Delete card'>🗙</button>
-                    <button class='action-button edit-tags-button' onclick="showEditTags(this, '${card.topics.join(',')}')" title='Edit tags'>✎</button>
-                    <div class='edit-tags-container' style='display: none;'>
-                        <input type='text' class='edit-tags-input'>
-                        <button class='save-tags-button' onclick='saveTags("${card.id}")'>Save</button>
-                    </div>
-                    <button class='action-button copy-json-button' onclick="copyJSON('${card.id}', this)" title="Copy JSON">📋</button>
-                    <button class='action-button open-new-tab-button' onclick="openInNewTab('${card.id}')" title="Open in new tab">↗️</button>
-                    <img src='${card.imagePath}' alt='${card.name}' class='card-image' title='Click for details'>
-                    <div class='card-content' style="max-height: 620px;">
-                        <h3 title='${card.lastActivityAt}' onclick="showLightbox('${card.imagePath}', '${card.description}', '${card.id}')">${card.name}</h3>
-                        <p style="font-size: 13px;">by <a href='?query=${card.author}&type=author' title='Browse all cards by ${card.author}'>${card.author}</a> | ${card.tokenCount} tokens</p>
-                        <p style="font-size: 11px;"><span title="Created by Author date/time">⚒ ${card.createdAt}</span> | <span title="Last update by Author date/time">🗘 ${card.lastActivityAt}</span></p>
-                        <button class='download-btn' onclick='downloadImage("${card.imagePath}", "${card.name}")'>Download</button>
-                        <p>
-                        ${card.topics.length > 0 ? `
-                            <p id='tags'><i>Tags: ${card.topics.map(topic => `<a href='?query=${topic}&type=tag' title='Browse other cards tagged with ${topic}'>${topic}</a>`).join(', ')}</i></p>
-                        ` : ''}
-                        </p>
-                        <p id='descr'>
-                            ${card.tagline ? `<p id='tagline'>${card.tagline}</p>` : ''}
-                            ${card.description ? `<p id='description'>${card.description}</p>` : ''}
-                        </p>
-                    </div>`;
-
-                        container.appendChild(cardDiv);
-
-                        // Attach lightbox event listeners to the new card
-                        attachLightboxListeners(cardDiv);
-                    });
-
-                    totalPages = data.total_pages;
-                    isLoading = false;
-
-                    // Reapply other preferences (e.g., NSFW blurring, compact mode)
-                    applyBlurringPreference();
-                    applyCompactModePreference();
-                })
-                .catch(error => {
-                    console.error("Error loading more cards:", error);
-                    isLoading = false;
-                });
-        }
-        // Detect scroll event
-        window.addEventListener("scroll", () => {
-            if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 500) {
-                loadMoreCards();
-            }
-        });
-
-        function attachLightboxListeners(cardContainer) {
-            const cardImage = cardContainer.querySelector('.card-image');
-            const cardTitle = cardContainer.querySelector('.card-content h3');
-
-            if (cardImage && cardTitle) {
-                cardImage.addEventListener('click', () => {
-                    const cardDescription = cardContainer.querySelector('.card-content #descr').textContent;
-                    showLightbox(cardImage.src, cardDescription);
-                });
-
-                cardTitle.addEventListener('click', () => {
-                    const cardDescription = cardContainer.querySelector('.card-content #descr').textContent;
-                    showLightbox(cardImage.src, cardDescription);
-                });
-            }
-        }
-        function toggleTags() {
-            const tagsContainer = document.querySelector('.tags-container');
-            if (tagsContainer) {
-                tagsContainer.classList.toggle('show-tags');
-
-                // Update the button text to indicate the current state
-                const tagsToggleButton = document.getElementById('tagsToggle');
-                if (tagsContainer.classList.contains('show-tags')) {
-                    tagsToggleButton.textContent = 'T'; // Show "T" when tags are visible
-                } else {
-                    tagsToggleButton.textContent = 'T'; // Show "T" when tags are hidden
-                }
-            }
-        }
-
-        // Hide tags by default on page load
-        document.addEventListener('DOMContentLoaded', () => {
-            const tagsContainer = document.querySelector('.tags-container');
-            if (tagsContainer) {
-                tagsContainer.classList.remove('show-tags');
-            }
-        });
-
-        function filterTags() {
-            const input = document.querySelector('input[name="query"]');
-            const tagsContainer = document.querySelector('.tags-container');
-            const tags = Array.from(tagsContainer.querySelectorAll('.tag-container p a'));
-
-            input.addEventListener('input', function () {
-                const query = this.value.toLowerCase();
-                tags.forEach(tag => {
-                    const tagText = tag.textContent.toLowerCase();
-                    if (tagText.includes(query)) {
-                        tag.parentElement.parentElement.style.display = 'block';
-                    } else {
-                        tag.parentElement.parentElement.style.display = 'none';
-                    }
-                });
-            });
-        }
-
-        document.addEventListener('DOMContentLoaded', filterTags);
-
-        document.addEventListener('DOMContentLoaded', function () {
-            const searchInput = document.getElementById('searchInput');
-            const autocompleteDropdown = document.getElementById('autocompleteDropdown');
-
-            // Fetch all unique tags from the cards
-            const tags = new Set();
-            document.querySelectorAll('.tags-container .tag-container p a').forEach(tag => {
-                tags.add(tag.textContent.trim().toLowerCase());
-            });
-
-            // Convert the Set to an array
-            const tagList = Array.from(tags);
-
-            // Function to show autocomplete suggestions
-            function showAutocompleteSuggestions(query) {
-                autocompleteDropdown.innerHTML = ''; // Clear previous suggestions
-
-                if (query.length === 0) {
-                    autocompleteDropdown.style.display = 'none';
-                    return;
-                }
-
-                const filteredTags = tagList.filter(tag => tag.includes(query.toLowerCase()));
-
-                if (filteredTags.length > 0) {
-                    filteredTags.forEach(tag => {
-                        const suggestion = document.createElement('div');
-                        suggestion.textContent = tag;
-                        suggestion.addEventListener('click', () => {
-                            searchInput.value = tag;
-                            autocompleteDropdown.style.display = 'none';
-                        });
-                        autocompleteDropdown.appendChild(suggestion);
-                    });
-                    autocompleteDropdown.style.display = 'block';
-                } else {
-                    autocompleteDropdown.style.display = 'none';
-                }
-            }
-
-            // Event listener for input changes
-            searchInput.addEventListener('input', function () {
-                showAutocompleteSuggestions(this.value);
-            });
-
-            // Hide dropdown when clicking outside
-            document.addEventListener('click', function (event) {
-                if (!searchInput.contains(event.target) && !autocompleteDropdown.contains(event.target)) {
-                    autocompleteDropdown.style.display = 'none';
-                }
-            });
-
-
-
-        });
-
-        document.addEventListener('DOMContentLoaded', function () {
-            const sortSelect = document.getElementById('sort');
-
-            // Function to update sorting based on user selection
-            function handleSortChange(event) {
-                let selectedValue = event.target.value;
-
-                const urlParams = new URLSearchParams(window.location.search);
-                let query = urlParams.get('query') || '';
-                let type = urlParams.get('type') || 'basic';
-                let page = 1; // Reset to the first page when sorting
-
-                fetch(`/sort?page=${page}&query=${query}&type=${type}&sort=${selectedValue}`)
-                    .then(response => response.json())
-                    .then(data => {
-                        const container = document.getElementById("cards-container");
-                        container.innerHTML = ''; // Clear existing cards
-
-                        data.cards.forEach(card => {
-                            let cardDiv = document.createElement("div");
-                            cardDiv.classList.add("card-container");
-                            cardDiv.id = `card-${card.id}`;
-
-                            // Add the full HTML structure for each card
-                            cardDiv.innerHTML = `
-                    <button class='action-button delete-card-button' onclick='deleteCard("${card.id}")' title='Delete card'>🗙</button>
-                    <button class='action-button edit-tags-button' onclick="showEditTags(this, '${card.topics.join(',')}')" title='Edit tags'>✎</button>
-                    <div class='edit-tags-container' style='display: none;'>
-                        <input type='text' class='edit-tags-input'>
-                        <button class='save-tags-button' onclick='saveTags("${card.id}")'>Save</button>
-                    </div>
-                    <button class='action-button copy-json-button' onclick="copyJSON('${card.id}', this)" title="Copy JSON">📋</button>
-                    <button class='action-button open-new-tab-button' onclick="openInNewTab('${card.id}')" title="Open in new tab">↗️</button>
-                    <img src='${card.imagePath}' alt='${card.name}' class='card-image' title='Click for details'>
-                    <div class='card-content' style="max-height: 620px;">
-                        <h3 title='${card.lastActivityAt}' onclick="showLightbox('${card.imagePath}', '${card.description}', '${card.id}')">${card.name}</h3>
-                        <p style="font-size: 13px;">by <a href='?query=${card.author}&type=author' title='Browse all cards by ${card.author}'>${card.author}</a> | ${card.tokenCount} tokens</p>
-                        <p style="font-size: 11px;"><span title="Created by Author date/time">⚒ ${card.createdAt}</span> | <span title="Last update by Author date/time">🗘 ${card.lastActivityAt}</span></p>
-                        <button class='download-btn' onclick='downloadImage("${card.imagePath}", "${card.name}")'>Download</button>
-                        <p>
-                        ${card.topics.length > 0 ? `
-                            <p id='tags'><i>Tags: ${card.topics.map(topic => `<a href='?query=${topic}&type=tag' title='Browse other cards tagged with ${topic}'>${topic}</a>`).join(', ')}</i></p>
-                        ` : ''}
-                        </p>
-                        <p id='descr'>
-                            ${card.tagline ? `<p id='tagline'>${card.tagline}</p>` : ''}
-                            ${card.description ? `<p id='description'>${card.description}</p>` : ''}
-                        </p>
-                    </div>`;
-
-                            container.appendChild(cardDiv);
-
-                            // Attach lightbox event listeners to the new card (optional)
-                            attachLightboxListeners(cardDiv);
-                        });
-                    })
-                    .catch(error => console.error("Error fetching sorted cards:", error));
-            }
-
-            // Event listener for sorting dropdown changes
-            sortSelect.addEventListener('change', handleSortChange);
-            window.handleSortChange = handleSortChange;
-
-            // Initialize current state from URL parameters
-            let urlParams = new URLSearchParams(window.location.search);
-            currentPage = parseInt(urlParams.get('page')) || 1;
-            currentQuery = urlParams.get('query') || '';
-            currentType = urlParams.get('type') || 'basic';
-        });
-
-        function openInNewTab(cardId) {
-            const newTab = window.open(`/get_card_info/${cardId}`, '_blank');
-            if (newTab) newTab.focus();
-        }
+        window.APP_DATA = {
+            totalPages: {{ total_pages }},
+            searchQuery: {{ request.args.get('query') | tojson }}
+        };
     </script>
+    <script src="/assets/index.js"></script>
 </body>
 
 </html>

@@ -1,41 +1,329 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
+    <meta charset="utf-8">
     <title>{{ metadata.name }}</title>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; }
+
+        body {
+            font-family: system-ui, Arial, sans-serif;
+            font-size: 15px;
+            line-height: 1.65;
+            margin: 0;
+            padding: 0;
+        }
+
+        body.light-mode {
+            background: #f0f0f0;
+            color: #222;
+        }
+
+        body.dark-mode {
+            background: #222;
+            color: #e0e0e0;
+        }
+
+        .page {
+            max-width: 860px;
+            margin: 32px auto;
+            padding: 0 20px 40px;
+        }
+
+        /* ── Header ── */
+        .header {
+            display: flex;
+            gap: 20px;
+            align-items: flex-start;
+            margin-bottom: 24px;
+        }
+
+        .header-image {
+            flex-shrink: 0;
+            width: 220px;
+        }
+
+        .header-image img {
+            width: 100%;
+            border-radius: 8px;
+            display: block;
+        }
+
+        .header-meta {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .header-meta h1 {
+            margin: 0 0 10px;
+            font-size: 22px;
+            line-height: 1.3;
+            word-break: break-word;
+        }
+
+        .meta-row {
+            font-size: 13px;
+            margin: 4px 0;
+        }
+
+        .meta-label {
+            font-weight: 600;
+            margin-right: 4px;
+        }
+
+        body.light-mode .meta-label { color: #555; }
+        body.dark-mode  .meta-label { color: #aaa; }
+
+        /* ── Tags ── */
+        .tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin: 10px 0 8px;
+        }
+
+        .tag-chip {
+            display: inline-block;
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 12px;
+            line-height: 1.6;
+        }
+
+        body.light-mode .tag-chip { background: #dde3eb; color: #334; }
+        body.dark-mode  .tag-chip { background: #3a3f4a; color: #bcc; }
+
+        .tagline {
+            font-style: italic;
+            font-size: 14px;
+            margin: 6px 0 0;
+            opacity: 0.8;
+        }
+
+        /* ── Content sections ── */
+        .section {
+            margin-bottom: 16px;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        body.light-mode .section { background: #fff;    border: 1px solid #ddd; }
+        body.dark-mode  .section { background: #2d2d2d; border: 1px solid #444; }
+
+        .section-label {
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.07em;
+            text-transform: uppercase;
+            padding: 6px 12px;
+        }
+
+        body.light-mode .section-label { background: #e8edf3; color: #556; border-bottom: 1px solid #ddd; }
+        body.dark-mode  .section-label { background: #383838; color: #99a; border-bottom: 1px solid #444; }
+
+        .section-body {
+            padding: 10px 14px;
+            font-size: 14px;
+            white-space: pre-wrap;
+            word-break: break-word;
+            overflow-wrap: break-word;
+        }
+
+        /* ── Raw JSON ── */
+        details {
+            margin-top: 20px;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        body.light-mode details { border: 1px solid #ddd; }
+        body.dark-mode  details { border: 1px solid #444; }
+
+        summary {
+            cursor: pointer;
+            font-size: 12px;
+            padding: 7px 12px;
+            user-select: none;
+            outline: none;
+        }
+
+        body.light-mode summary { background: #e8edf3; color: #667; }
+        body.dark-mode  summary { background: #383838; color: #99a; }
+
+        pre {
+            margin: 0;
+            padding: 12px 14px;
+            font-size: 12px;
+            white-space: pre-wrap;
+            word-break: break-all;
+            overflow-x: auto;
+        }
+
+        body.light-mode pre { background: #fafafa; }
+        body.dark-mode  pre { background: #262626; }
+
+        /* ── Footer ── */
+        .footer {
+            margin-top: 20px;
+            font-size: 13px;
+            opacity: 0.75;
+        }
+
+        .footer a {
+            text-decoration: none;
+        }
+
+        body.light-mode .footer a { color: #007bff; }
+        body.dark-mode  .footer a { color: #5aadff; }
+
+        .footer a:hover { text-decoration: underline; }
+
+        #download-btn {
+            font-size: 13px;
+            padding: 4px 12px;
+            border-radius: 5px;
+            cursor: pointer;
+            border: 1px solid currentColor;
+            background: none;
+            font-family: inherit;
+        }
+
+        body.light-mode #download-btn { color: #007bff; }
+        body.dark-mode  #download-btn { color: #5aadff; }
+
+        #download-btn:hover { opacity: 0.7; }
+
+        /* ── Dark mode toggle ── */
+        #theme-toggle {
+            position: fixed;
+            top: 14px;
+            right: 16px;
+            font-size: 18px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            opacity: 0.55;
+            transition: opacity 0.15s;
+            padding: 4px;
+            line-height: 1;
+        }
+
+        #theme-toggle:hover { opacity: 1; }
+
+        @media (max-width: 560px) {
+            .header { flex-direction: column; }
+            .header-image { width: 100%; max-width: 280px; }
+        }
+    </style>
 </head>
 
 <body>
-    <h1>{{ metadata.name }}</h1>
-    <img src="{{ metadata.imagePath }}" alt="{{ metadata.name }}" style="max-width: 300px; max-height: 300px;">
-    <p><strong>Author:</strong> {{ metadata.author }}</p>
-    <p><strong>Created At:</strong> {{ metadata.createdAt }}</p>
-    <p><strong>Last Activity:</strong> {{ metadata.lastActivityAt }}</p>
-    {% if metadata.topics %}
-    <p><strong>Tags:</strong> {{ metadata.topics | join(', ') }}</p>
-    {% endif %}
-    {% if metadata.tagline %}
-    <p><strong>Tagline:</strong> {{ metadata.tagline }}</p>
-    {% endif %}
-    {% if metadata.description %}
-    <p><strong>Author describes as:</strong> {{ metadata.description }}</p>
-    {% endif %}
-    {% if metadata.data.description %}
-    <p><strong>Char description:</strong> {{ metadata.data.description }}</p>
-    {% endif %}
-    {% if metadata.data.first_mes %}
-    <p><strong>First message:</strong> {{ metadata.data.first_mes }}</p>
-    {% endif %}
-    {% if metadata.data.creator_notes %}
-    <p><strong>Greetings:</strong> {{ metadata.data.creator_notes }}</p>
-    {% endif %}
-    {% if metadata.data.mes_example %}
-    <p><strong>Message examples:</strong> {{ metadata.data.mes_example }}</p>
-    {% endif %}
+    <button id="theme-toggle" title="Toggle dark/light mode">🌙</button>
 
+    <div class="page">
+        <div class="header">
+            <div class="header-image">
+                <img src="{{ metadata.imagePath }}" alt="{{ metadata.name }}">
+            </div>
+            <div class="header-meta">
+                <h1>{{ metadata.name }}</h1>
+                <div class="meta-row"><span class="meta-label">Author:</span>{{ metadata.author }}</div>
+                <div class="meta-row"><span class="meta-label">Created:</span>{{ metadata.createdAt }}</div>
+                <div class="meta-row"><span class="meta-label">Last activity:</span>{{ metadata.lastActivityAt }}</div>
+                {% if metadata.topics %}
+                <div class="tags">
+                    {% for tag in metadata.topics %}
+                    <span class="tag-chip">{{ tag }}</span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                {% if metadata.tagline %}
+                <div class="tagline">{{ metadata.tagline }}</div>
+                {% endif %}
+                <button id="download-btn"
+                        data-image="{{ metadata.imagePath }}"
+                        onclick="downloadCard(this)">Download</button>
+            </div>
+        </div>
 
-    <p>All: {{metadata}}</p>
-    <a href="javascript:window.close()">Close</a>
+        {% if metadata.description %}
+        <div class="section">
+            <div class="section-label">Author description</div>
+            <div class="section-body">{{ metadata.description }}</div>
+        </div>
+        {% endif %}
+
+        {% if metadata.data.description %}
+        <div class="section">
+            <div class="section-label">Character description</div>
+            <div class="section-body">{{ metadata.data.description }}</div>
+        </div>
+        {% endif %}
+
+        {% if metadata.data.first_mes %}
+        <div class="section">
+            <div class="section-label">First message</div>
+            <div class="section-body">{{ metadata.data.first_mes }}</div>
+        </div>
+        {% endif %}
+
+        {% if metadata.data.creator_notes %}
+        <div class="section">
+            <div class="section-label">Creator notes</div>
+            <div class="section-body">{{ metadata.data.creator_notes }}</div>
+        </div>
+        {% endif %}
+
+        {% if metadata.data.mes_example %}
+        <div class="section">
+            <div class="section-label">Message examples</div>
+            <div class="section-body">{{ metadata.data.mes_example }}</div>
+        </div>
+        {% endif %}
+
+        <details>
+            <summary>Raw metadata</summary>
+            <pre>{{ metadata | tojson(indent=2) }}</pre>
+        </details>
+
+        <div class="footer"><a href="javascript:window.close()">Close tab</a></div>
+    </div>
+
+    <script>
+        function downloadCard(btn) {
+            const imagePath = btn.dataset.image;
+            const cardId    = imagePath.split('/').pop().split('.').shift();
+            const filename  = cardId + '.png';
+            fetch(imagePath)
+                .then(r => r.blob())
+                .then(blob => {
+                    const url  = URL.createObjectURL(new Blob([blob], { type: 'image/png' }));
+                    const link = document.createElement('a');
+                    link.href  = url;
+                    link.download = filename;
+                    link.click();
+                    URL.revokeObjectURL(url);
+                })
+                .catch(err => console.error('Download error:', err));
+        }
+
+        const btn = document.getElementById('theme-toggle');
+
+        function applyTheme(dark) {
+            document.body.classList.toggle('dark-mode', dark);
+            document.body.classList.toggle('light-mode', !dark);
+            btn.textContent = dark ? '☀️' : '🌙';
+        }
+
+        applyTheme(localStorage.getItem('darkMode') === 'true');
+
+        btn.addEventListener('click', function () {
+            const nowDark = document.body.classList.contains('dark-mode');
+            applyTheme(!nowDark);
+            localStorage.setItem('darkMode', (!nowDark).toString());
+        });
+    </script>
 </body>
 
 </html>

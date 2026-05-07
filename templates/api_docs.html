@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Local Chub — API Docs</title>
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background: #1a1a1a; color: #e0e0e0; margin: 0; padding: 0; }
+        .topbar { display: flex; align-items: center; gap: 16px; padding: 10px 24px; border-bottom: 1px solid #333; background: #222; }
+        .topbar a { color: #e0e0e0; text-decoration: none; font-size: 14px; font-weight: bold; }
+        .topbar a:hover { color: #aaa; }
+        .topbar h1 { margin: 0; font-size: 18px; font-weight: bold; }
+        .page { max-width: 860px; margin: 0 auto; padding: 32px 24px 64px; }
+        h2 { font-size: 20px; margin: 36px 0 12px; border-bottom: 1px solid #333; padding-bottom: 8px; }
+        h3 { font-size: 16px; margin: 24px 0 8px; color: #ccc; }
+        p, li { font-size: 14px; line-height: 1.7; color: #bbb; }
+        ul { padding-left: 20px; }
+        code { font-family: 'Courier New', monospace; background: #2a2a2a; padding: 2px 6px; border-radius: 4px; font-size: 13px; color: #e0e0e0; }
+        pre { background: #222; border: 1px solid #333; border-radius: 6px; padding: 14px 16px; overflow-x: auto; font-size: 13px; line-height: 1.6; color: #e0e0e0; }
+        pre code { background: none; padding: 0; }
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; font-family: monospace; margin-right: 6px; }
+        .get { background: #1a4a7a; color: #7ab8f5; }
+        .post { background: #1a4a2a; color: #7af5a0; }
+        .patch { background: #4a3a1a; color: #f5c87a; }
+        .endpoint { margin-bottom: 28px; padding: 16px 18px; background: #222; border: 1px solid #2e2e2e; border-radius: 8px; }
+        .endpoint-title { font-size: 14px; font-family: monospace; color: #e0e0e0; margin-bottom: 8px; }
+        .endpoint p { margin: 6px 0; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 12px 0; }
+        th { text-align: left; padding: 7px 10px; background: #2a2a2a; color: #aaa; border-bottom: 1px solid #333; }
+        td { padding: 7px 10px; border-bottom: 1px solid #2a2a2a; color: #ccc; vertical-align: top; }
+        td code { font-size: 12px; }
+
+        /* Token section */
+        .token-panel { background: #222; border: 1px solid #2e2e2e; border-radius: 10px; padding: 24px; margin-bottom: 8px; }
+        .token-status { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+        .token-display { font-family: monospace; font-size: 14px; background: #1a1a1a; border: 1px solid #3a3a3a; padding: 8px 14px; border-radius: 6px; color: #e0e0e0; min-width: 220px; flex: 1; word-break: break-all; }
+        .token-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+        .btn { padding: 8px 16px; border-radius: 6px; border: none; font-size: 13px; cursor: pointer; transition: background .15s; }
+        .btn-blue { background: #007bff; color: #fff; }
+        .btn-blue:hover { background: #0056b3; }
+        .btn-grey { background: #3a3a3a; color: #e0e0e0; }
+        .btn-grey:hover { background: #4a4a4a; }
+        .btn-red { background: #6b2020; color: #ffaaaa; }
+        .btn-red:hover { background: #8a2020; }
+        .token-note { font-size: 12px; color: #666; margin-top: 12px; }
+        .badge-status { font-size: 12px; padding: 3px 8px; border-radius: 12px; }
+        .badge-active { background: rgba(46,160,67,.25); color: #3fb950; }
+        .badge-none { background: rgba(160,46,46,.25); color: #f85149; }
+
+        /* Modal */
+        .modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.75); backdrop-filter: blur(4px); justify-content: center; align-items: center; z-index: 100; }
+        .modal-bg.open { display: flex; }
+        .modal { background: #2a2a2a; border-radius: 10px; padding: 28px; max-width: 360px; width: 90%; }
+        .modal h3 { margin: 0 0 10px; }
+        .modal p { color: #aaa; font-size: 13px; margin: 0 0 20px; line-height: 1.6; }
+        .modal-actions { display: flex; gap: 8px; }
+        .modal-actions button { flex: 1; padding: 9px; border-radius: 6px; border: none; font-size: 13px; cursor: pointer; }
+        .m-cancel { background: #3a3a3a; color: #e0e0e0; }
+        .m-cancel:hover { background: #4a4a4a; }
+        .m-confirm { background: #cc3333; color: #fff; }
+        .m-confirm:hover { background: #a02020; }
+
+        .new-token-box { background: #1a3a1a; border: 1px solid #2a5a2a; border-radius: 6px; padding: 14px; margin-top: 16px; display: none; }
+        .new-token-box p { color: #7af5a0; font-size: 13px; margin: 0 0 8px; }
+        .new-token-box .token-val { font-family: monospace; font-size: 13px; word-break: break-all; color: #e0e0e0; }
+        .new-token-copy { margin-top: 10px; }
+    </style>
+</head>
+<body>
+
+<div class="topbar">
+    <a href="/">← Back to Local Chub</a>
+    <h1>API Documentation</h1>
+</div>
+
+<div class="page">
+
+    <h2>Token Management</h2>
+    <div class="token-panel">
+        <p style="margin:0 0 16px;font-size:14px;color:#aaa;">Generate a bearer token to authenticate API requests. Store it securely — it grants full API access.</p>
+        <div class="token-status">
+            <span id="tokenBadge" class="badge-status badge-none">No token</span>
+            <div class="token-display" id="tokenDisplay">—</div>
+        </div>
+        <div class="token-actions">
+            <button class="btn btn-blue" id="btnGenerate" onclick="generateToken()">Generate token</button>
+            <button class="btn btn-grey" id="btnCopy" onclick="copyToken()" style="display:none;">Copy</button>
+            <button class="btn btn-red" id="btnRotate" onclick="openRotateModal()" style="display:none;">Rotate token</button>
+        </div>
+        <div class="new-token-box" id="newTokenBox">
+            <p>✓ New token generated — copy it now, it won't be shown in full again.</p>
+            <div class="token-val" id="newTokenVal"></div>
+            <div class="new-token-copy">
+                <button class="btn btn-grey" onclick="copyNewToken()">Copy new token</button>
+            </div>
+        </div>
+        <div class="token-note">Tokens are stored locally in your database. Rotating invalidates the previous token immediately.</div>
+    </div>
+
+    <h2>Overview</h2>
+    <p>All <code>/api/v1/</code> endpoints require a bearer token in the <code>Authorization</code> header:</p>
+    <pre><code>Authorization: Bearer &lt;your-token&gt;</code></pre>
+    <p>Base URL: <code>http://localhost:1488</code></p>
+
+    <h2>Cards</h2>
+
+    <div class="endpoint">
+        <div class="endpoint-title"><span class="badge get">GET</span><code>/api/v1/cards</code></div>
+        <p>List cards with pagination and optional search/filter.</p>
+        <table>
+            <tr><th>Param</th><th>Type</th><th>Description</th></tr>
+            <tr><td><code>page</code></td><td>integer</td><td>Page number (default: 1)</td></tr>
+            <tr><td><code>query</code></td><td>string</td><td>Search query (comma-separated tags, prefix with <code>-</code> to exclude)</td></tr>
+            <tr><td><code>type</code></td><td>string</td><td><code>basic</code> | <code>tag</code> | <code>title</code> | <code>author</code></td></tr>
+            <tr><td><code>sort</code></td><td>string</td><td><code>createdAt</code> | <code>lastActivityAt</code></td></tr>
+        </table>
+        <pre><code>curl -H "Authorization: Bearer TOKEN" \
+     "http://localhost:1488/api/v1/cards?page=1&sort=lastActivityAt"</code></pre>
+        <p><strong>Response:</strong></p>
+        <pre><code>{
+  "cards": [ { "id": 123, "name": "...", "author": "...", "topics": [...],
+               "tokenCount": 1500, "quality_score": 4.0, "quality_bar": "⭐⭐⭐⭐☆ 4.0",
+               "lewdity_score": null, "lewdity_bar": null,
+               "story_score": 3.5, "story_bar": "📖📖📖½☆ 3.5",
+               "createdAt": "Jan 01, 2024 12:00", "lastActivityAt": "...", ... } ],
+  "page": 1, "total_pages": 12, "count": 1180
+}</code></pre>
+    </div>
+
+    <div class="endpoint">
+        <div class="endpoint-title"><span class="badge get">GET</span><code>/api/v1/cards/{id}</code></div>
+        <p>Full card details including character sheet data from the PNG.</p>
+        <pre><code>curl -H "Authorization: Bearer TOKEN" \
+     "http://localhost:1488/api/v1/cards/6194250"</code></pre>
+        <p><strong>Response:</strong> all fields from the list endpoint plus <code>raw_data</code> (character description, first message, creator notes, etc.) and <code>png_info</code> (full chara JSON).</p>
+    </div>
+
+    <div class="endpoint">
+        <div class="endpoint-title"><span class="badge patch">PATCH</span><code>/api/v1/cards/{id}</code></div>
+        <p>Update card scores and/or tags. All fields are optional.</p>
+        <table>
+            <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+            <tr><td><code>quality</code></td><td>float 0–5</td><td>Quality score (null to clear)</td></tr>
+            <tr><td><code>lewdity</code></td><td>float 0–5</td><td>Lewdity score (null to clear)</td></tr>
+            <tr><td><code>story</code></td><td>float 0–5</td><td>Story score (null to clear)</td></tr>
+            <tr><td><code>topics</code></td><td>string[]</td><td>Replace full tag list</td></tr>
+        </table>
+        <pre><code>curl -X PATCH -H "Authorization: Bearer TOKEN" \
+     -H "Content-Type: application/json" \
+     -d '{"quality": 4.5, "story": 3.0}' \
+     "http://localhost:1488/api/v1/cards/6194250"</code></pre>
+    </div>
+
+    <h2>Tags</h2>
+
+    <div class="endpoint">
+        <div class="endpoint-title"><span class="badge post">POST</span><code>/api/v1/cards/{id}/tags/add</code></div>
+        <p>Add tags to a card without replacing existing ones.</p>
+        <pre><code>curl -X POST -H "Authorization: Bearer TOKEN" \
+     -H "Content-Type: application/json" \
+     -d '{"tags": ["fantasy", "adventure"]}' \
+     "http://localhost:1488/api/v1/cards/6194250/tags/add"</code></pre>
+    </div>
+
+    <div class="endpoint">
+        <div class="endpoint-title"><span class="badge post">POST</span><code>/api/v1/cards/{id}/tags/remove</code></div>
+        <p>Remove specific tags from a card.</p>
+        <pre><code>curl -X POST -H "Authorization: Bearer TOKEN" \
+     -H "Content-Type: application/json" \
+     -d '{"tags": ["old-tag"]}' \
+     "http://localhost:1488/api/v1/cards/6194250/tags/remove"</code></pre>
+    </div>
+
+    <h2>Agent Usage Example</h2>
+    <p>A simple pattern for an AI agent to score cards:</p>
+    <pre><code># 1. Get a page of cards
+GET /api/v1/cards?page=1&sort=createdAt
+
+# 2. For each unscored card, read its full data
+GET /api/v1/cards/{id}   # includes description, first_mes, creator_notes
+
+# 3. Score it
+PATCH /api/v1/cards/{id}
+{ "quality": 3.5, "lewdity": 1.0, "story": 4.0 }
+
+# 4. Optionally add/remove tags based on content
+POST /api/v1/cards/{id}/tags/add
+{ "tags": ["fantasy", "romance"] }</code></pre>
+
+</div>
+
+<div class="modal-bg" id="rotateModal">
+    <div class="modal">
+        <h3>Rotate token?</h3>
+        <p>This will <strong>invalidate your current token immediately</strong>. Any clients using it will stop working until you update them with the new token.</p>
+        <div class="modal-actions">
+            <button class="m-cancel" onclick="closeRotateModal()">Cancel</button>
+            <button class="m-confirm" onclick="confirmRotate()">Rotate</button>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentToken = null;
+
+async function loadTokenStatus() {
+    try {
+        const data = await fetch('/api/token/status').then(r => r.json());
+        currentToken = data.token;
+        const badge = document.getElementById('tokenBadge');
+        const display = document.getElementById('tokenDisplay');
+        const btnCopy = document.getElementById('btnCopy');
+        const btnRotate = document.getElementById('btnRotate');
+        const btnGenerate = document.getElementById('btnGenerate');
+
+        if (data.has_token) {
+            badge.textContent = 'Active';
+            badge.className = 'badge-status badge-active';
+            display.textContent = data.masked;
+            btnCopy.style.display = '';
+            btnRotate.style.display = '';
+            btnGenerate.textContent = 'Rotate token';
+            btnGenerate.style.display = 'none';
+            btnRotate.style.display = '';
+        } else {
+            badge.textContent = 'No token';
+            badge.className = 'badge-status badge-none';
+            display.textContent = '—';
+            btnCopy.style.display = 'none';
+            btnRotate.style.display = 'none';
+            btnGenerate.style.display = '';
+        }
+    } catch(e) {
+        console.error('Failed to load token status', e);
+    }
+}
+
+async function generateToken() {
+    const resp = await fetch('/api/token/generate', { method: 'POST' });
+    const data = await resp.json();
+    currentToken = data.token;
+    showNewToken(data.token);
+    loadTokenStatus();
+}
+
+function showNewToken(token) {
+    document.getElementById('newTokenVal').textContent = token;
+    document.getElementById('newTokenBox').style.display = '';
+}
+
+function copyToken() {
+    if (currentToken) {
+        navigator.clipboard.writeText(currentToken)
+            .then(() => { const b = document.getElementById('btnCopy'); b.textContent = 'Copied!'; setTimeout(() => b.textContent = 'Copy', 2000); })
+            .catch(() => alert('Copy failed. Token: ' + currentToken));
+    }
+}
+
+function copyNewToken() {
+    const val = document.getElementById('newTokenVal').textContent;
+    navigator.clipboard.writeText(val)
+        .catch(() => alert('Copy failed. Token: ' + val));
+}
+
+function openRotateModal() { document.getElementById('rotateModal').classList.add('open'); }
+function closeRotateModal() { document.getElementById('rotateModal').classList.remove('open'); }
+
+async function confirmRotate() {
+    closeRotateModal();
+    await generateToken();
+}
+
+document.getElementById('rotateModal').addEventListener('click', function(e) {
+    if (e.target === this) closeRotateModal();
+});
+
+loadTokenStatus();
+</script>
+</body>
+</html>

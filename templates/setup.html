@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Local Chub — Setup</title>
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background: #1a1a1a; color: #e0e0e0; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+        .card { background: #2a2a2a; border-radius: 12px; padding: 40px; width: min(420px, 94vw); box-shadow: 0 8px 32px rgba(0,0,0,0.55); }
+        h1 { margin: 0 0 6px; font-size: 24px; }
+        .subtitle { color: #888; font-size: 14px; margin: 0 0 28px; }
+        label { display: block; margin-bottom: 5px; font-size: 13px; color: #aaa; }
+        input[type=text], input[type=password] { width: 100%; padding: 10px 12px; border-radius: 6px; border: 1px solid #444; background: #1a1a1a; color: #e0e0e0; font-size: 15px; margin-bottom: 18px; outline: none; transition: border-color .15s; }
+        input:focus { border-color: #007bff; }
+        .btn-primary { width: 100%; padding: 12px; background: #007bff; color: #fff; border: none; border-radius: 6px; font-size: 15px; cursor: pointer; margin-bottom: 12px; transition: background .15s; }
+        .btn-primary:hover { background: #0056b3; }
+        .btn-secondary { width: 100%; padding: 10px; background: transparent; color: #777; border: 1px solid #444; border-radius: 6px; font-size: 14px; cursor: pointer; transition: color .15s, border-color .15s; }
+        .btn-secondary:hover { color: #aaa; border-color: #666; }
+        .error { color: #ff6b6b; font-size: 13px; margin-bottom: 14px; padding: 8px 12px; background: rgba(255,80,80,.1); border-radius: 5px; }
+        .modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.75); backdrop-filter: blur(4px); justify-content: center; align-items: center; z-index: 100; }
+        .modal-bg.open { display: flex; }
+        .modal { background: #2a2a2a; border-radius: 10px; padding: 32px; max-width: 380px; width: 90%; box-shadow: 0 8px 32px rgba(0,0,0,.6); }
+        .modal h2 { margin: 0 0 12px; font-size: 20px; }
+        .modal p { color: #aaa; font-size: 14px; line-height: 1.6; margin: 0 0 24px; }
+        .modal-actions { display: flex; gap: 10px; }
+        .modal-actions button { flex: 1; padding: 10px; border-radius: 6px; border: none; font-size: 14px; cursor: pointer; }
+        .btn-danger { background: #cc3333; color: #fff; }
+        .btn-danger:hover { background: #a02020; }
+        .btn-back { background: #3a3a3a; color: #e0e0e0; }
+        .btn-back:hover { background: #4a4a4a; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>Welcome to Local Chub</h1>
+        <p class="subtitle">Create an account to protect your instance, or skip to leave it open to anyone.</p>
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}<div class="error">{{ messages[0] }}</div>{% endif %}
+        {% endwith %}
+        <form method="post" action="/setup/create">
+            <label for="username">Username</label>
+            <input type="text" id="username" name="username" required autocomplete="username">
+            <label for="password">Password</label>
+            <input type="password" id="password" name="password" required autocomplete="new-password">
+            <label for="confirm">Confirm password</label>
+            <input type="password" id="confirm" name="confirm" required autocomplete="new-password">
+            <button type="submit" class="btn-primary">Create account</button>
+        </form>
+        <button class="btn-secondary" onclick="openSkipModal()">Skip — leave unauthorized</button>
+    </div>
+
+    <div class="modal-bg" id="skipModal">
+        <div class="modal">
+            <h2>⚠️ Leave unauthorized?</h2>
+            <p>Without an account, <strong>anyone on your local network</strong> can access, modify, and delete your cards. There will be no login prompt.</p>
+            <div class="modal-actions">
+                <button class="btn-back" onclick="closeSkipModal()">Go back</button>
+                <button class="btn-danger" onclick="doSkip()">I understand, continue</button>
+            </div>
+        </div>
+    </div>
+    <form id="skip-form" method="post" action="/setup/skip" style="display:none;"></form>
+
+    <script>
+        function openSkipModal() { document.getElementById('skipModal').classList.add('open'); }
+        function closeSkipModal() { document.getElementById('skipModal').classList.remove('open'); }
+        function doSkip() { document.getElementById('skip-form').submit(); }
+        document.getElementById('skipModal').addEventListener('click', function(e) {
+            if (e.target === this) closeSkipModal();
+        });
+    </script>
+</body>
+</html>
