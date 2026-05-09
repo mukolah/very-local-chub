@@ -13,6 +13,7 @@ let currentType = 'basic';
 let tmTagData = [];
 let tmSelected = new Set();
 let tmTagMeta = {};
+let showBanned = false;
 let tmDDActiveIndex = -1;
 
 // Apply dark mode before first paint to avoid flash
@@ -434,6 +435,7 @@ function makeCardDiv(card) {
     const div = document.createElement('div');
     div.className = 'card-container';
     div.id = `card-${card.id}`;
+    div.dataset.tags = (card.topics || []).join(',').toLowerCase();
     div.setAttribute('onmouseenter', 'showButtons(this)');
     div.setAttribute('onmouseleave', 'hideButtons(this)');
     div.innerHTML = createCardHTML(card);
@@ -522,15 +524,16 @@ function applyTagMetaStyles() {
 
 function applyBanFilter() {
     const bannedSet = new Set(Object.entries(tmTagMeta).filter(([, v]) => v.is_banned).map(([k]) => k));
+    const mergeMap = Object.fromEntries(
+        Object.entries(tmTagMeta).filter(([, v]) => v.merged_into).map(([k, v]) => [k, v.merged_into])
+    );
     document.querySelectorAll('.card-container').forEach(card => {
-        if (bannedSet.size === 0) {
+        if (bannedSet.size === 0 || showBanned) {
             if (card.dataset.hiddenByBan) { card.style.display = ''; delete card.dataset.hiddenByBan; }
             return;
         }
-        const cardTags = Array.from(card.querySelectorAll('#tags a')).map(a =>
-            (a.dataset.originalTag || a.textContent.trim()).toLowerCase()
-        );
-        if (cardTags.some(t => bannedSet.has(t))) {
+        const cardTags = (card.dataset.tags || '').split(',').map(t => t.trim()).filter(Boolean);
+        if (cardTags.some(t => bannedSet.has(t) || bannedSet.has(mergeMap[t]))) {
             card.style.display = 'none';
             card.dataset.hiddenByBan = '1';
         } else if (card.dataset.hiddenByBan) {
@@ -538,6 +541,14 @@ function applyBanFilter() {
             delete card.dataset.hiddenByBan;
         }
     });
+}
+
+function toggleShowBanned() {
+    showBanned = !showBanned;
+    const btn = document.getElementById('showBannedToggle');
+    btn.style.opacity = showBanned ? '1' : '0.5';
+    btn.title = showBanned ? 'Hide banned cards' : 'Show banned cards';
+    applyBanFilter();
 }
 
 // ── Tag manager open/close ────────────────────────────────
@@ -799,4 +810,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadTagMeta();
     applyTagMetaStyles();
     applyBanFilter();
+
+    const showBannedBtn = document.getElementById('showBannedToggle');
+    if (showBannedBtn) showBannedBtn.style.opacity = showBanned ? '1' : '0.5';
 });

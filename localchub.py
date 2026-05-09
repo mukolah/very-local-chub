@@ -9,6 +9,12 @@ app = Flask(__name__)
 CARDS_PER_PAGE = 100
 DB_PATH = 'cards.db'
 
+# ── In-memory caches ───────────────────────────────────────────────────────────
+_card_ids_cache = {'ids': None, 'time': 0.0}
+_tag_meta_cache = {'data': None, 'time': 0.0}
+CARD_IDS_CACHE_TTL = 60
+TAG_META_CACHE_TTL = 30
+
 # ── DB context manager ─────────────────────────────────────────────────────────
 
 @contextmanager
@@ -82,10 +88,13 @@ def set_setting(key, value):
 # ── Tag metadata ───────────────────────────────────────────────────────────────
 
 def get_tag_metadata_map():
+    now = time.time()
+    if _tag_meta_cache['data'] is not None and (now - _tag_meta_cache['time']) < TAG_META_CACHE_TTL:
+        return _tag_meta_cache['data']
     try:
         with get_db() as conn:
             rows = conn.execute("SELECT * FROM tag_metadata").fetchall()
-        return {
+        result = {
             row['tag']: {
                 'is_favourite': bool(row['is_favourite']),
                 'is_banned': bool(row['is_banned']),
@@ -94,7 +103,10 @@ def get_tag_metadata_map():
             for row in rows
         }
     except Exception:
-        return {}
+        result = {}
+    _tag_meta_cache['data'] = result
+    _tag_meta_cache['time'] = now
+    return result
 
 # ── Scores helpers ─────────────────────────────────────────────────────────────
 
@@ -112,6 +124,37 @@ def get_all_scores():
         }
     except Exception:
         return {}
+
+def get_scores_for_ids(card_ids):
+    if not card_ids:
+        return {}
+    placeholders = ','.join('?' * len(card_ids))
+    try:
+        with get_db() as conn:
+            rows = conn.execute(
+                f"SELECT * FROM card_scores WHERE card_id IN ({placeholders})",
+                list(card_ids)
+            ).fetchall()
+        return {row['card_id']: {'quality': row['quality'], 'lewdity': row['lewdity'], 'story': row['story']} for row in rows}
+    except Exception:
+        return {}
+
+def get_sorted_card_ids():
+    now = time.time()
+    if _card_ids_cache['ids'] is not None and (now - _card_ids_cache['time']) < CARD_IDS_CACHE_TTL:
+        return _card_ids_cache['ids']
+    json_files = [f for f in os.listdir('static') if f.endswith('.json')]
+    json_files.sort(key=lambda f: os.path.getmtime(os.path.join('static', f)), reverse=True)
+    ids = [int(os.path.splitext(f)[0]) for f in json_files]
+    _card_ids_cache['ids'] = ids
+    _card_ids_cache['time'] = now
+    return ids
+
+def invalidate_card_cache():
+    _card_ids_cache['ids'] = None
+
+def invalidate_tag_meta_cache():
+    _tag_meta_cache['data'] = None
 
 def render_score_bar(score, emoji):
     filled = int(score)
@@ -286,33 +329,15 @@ def card_is_banned(card_tags, banned_set, merge_map):
     return False
 
 def getCardList(page, query=None, searchType='basic', sort_by='createdAt'):
-    all_scores = get_all_scores()
-    json_files = [f for f in os.listdir('static') if f.endswith('.json')]
-
-    json_files.sort(
-        key=lambda f: os.path.getmtime(os.path.join('static', f)),
-        reverse=True
-    )
-
-    card_ids_sorted = [int(os.path.splitext(f)[0]) for f in json_files]
-
-    filtered_cards = []
+    card_ids_sorted = get_sorted_card_ids()
     randomTags = set()
 
-    tag_meta = get_tag_metadata_map()
-    banned = {t for t, v in tag_meta.items() if v['is_banned']}
-    merge_map = {t: v['merged_into'] for t, v in tag_meta.items() if v['merged_into']}
-
-    def add_to_random_tags(card_tags):
-        for ct in card_tags:
-            canonical = merge_map.get(ct, ct)
-            if canonical not in banned:
-                randomTags.add(canonical)
-
     if query:
+        tag_meta = get_tag_metadata_map()
+        merge_map = {t: v['merged_into'] for t, v in tag_meta.items() if v['merged_into']}
+
         include_tags_q = set()
         exclude_tags_q = set()
-
         for tag in query.lower().split(','):
             tag = tag.strip()
             if tag.startswith('-'):
@@ -320,6 +345,7 @@ def getCardList(page, query=None, searchType='basic', sort_by='createdAt'):
             else:
                 include_tags_q.add(tag)
 
+        filtered_cards = []
         for card_id in card_ids_sorted:
             try:
                 metadata = getCardMetadata(card_id)
@@ -328,52 +354,36 @@ def getCardList(page, query=None, searchType='basic', sort_by='createdAt'):
 
             card_tags = set(tag.lower() for tag in metadata.get('topics', []))
 
-            if banned and card_is_banned(card_tags, banned, merge_map):
-                continue
-
             if include_tags_q and not all(card_has_effective_tag(card_tags, req, merge_map) for req in include_tags_q):
                 continue
             if exclude_tags_q and not exclude_tags_q.isdisjoint(card_tags):
                 continue
 
-            add_to_random_tags(card_tags)
-            filtered_cards.append(createCardEntry(metadata, all_scores.get(card_id)))
+            for ct in card_tags:
+                randomTags.add(merge_map.get(ct, ct))
+            filtered_cards.append((card_id, metadata))
 
         total_cards = len(filtered_cards)
         total_pages = (total_cards + CARDS_PER_PAGE - 1) // CARDS_PER_PAGE
         start = (page - 1) * CARDS_PER_PAGE
         end = start + CARDS_PER_PAGE
-        return filtered_cards[start:end], total_cards, total_pages, randomTags
+        page_slice = filtered_cards[start:end]
+        scores = get_scores_for_ids([cid for cid, _ in page_slice])
+        return [createCardEntry(m, scores.get(cid)) for cid, m in page_slice], total_cards, total_pages, randomTags
 
-    if banned:
-        all_valid = []
-        for card_id in card_ids_sorted:
-            try:
-                metadata = getCardMetadata(card_id)
-                card_tags = set(t.lower() for t in metadata.get('topics', []))
-                if card_is_banned(card_tags, banned, merge_map):
-                    continue
-                all_valid.append((card_id, metadata))
-                add_to_random_tags(card_tags)
-            except Exception:
-                continue
-        total_cards = len(all_valid)
-        total_pages = (total_cards + CARDS_PER_PAGE - 1) // CARDS_PER_PAGE
-        start = (page - 1) * CARDS_PER_PAGE
-        end = start + CARDS_PER_PAGE
-        cards = [createCardEntry(m, all_scores.get(cid)) for cid, m in all_valid[start:end]]
-        return cards, total_cards, total_pages, randomTags
-
-    # Fast path: no bans
+    # Fast path: no query — bans handled client-side
     start = (page - 1) * CARDS_PER_PAGE
     end = start + CARDS_PER_PAGE
+    page_ids = card_ids_sorted[start:end]
+    scores = get_scores_for_ids(page_ids)
 
     cards = []
-    for card_id in card_ids_sorted[start:end]:
+    for card_id in page_ids:
         try:
             metadata = getCardMetadata(card_id)
-            cards.append(createCardEntry(metadata, all_scores.get(card_id)))
-            add_to_random_tags(set(t.lower() for t in metadata.get('topics', [])))
+            cards.append(createCardEntry(metadata, scores.get(card_id)))
+            for t in metadata.get('topics', []):
+                randomTags.add(t.lower())
         except Exception:
             continue
 
@@ -530,6 +540,7 @@ def syncCards():
                 if not dlCard(card):
                     continue
 
+        invalidate_card_cache()
         yield f"data: {json.dumps({'progress': 100, 'currCard': 'Sync Completed', 'newCards': newCards})}\n\n"
 
     return Response(genSyncData(), content_type='text/event-stream')
@@ -703,6 +714,7 @@ def api_toggle_ban():
             new_val = 1
             conn.execute('INSERT INTO tag_metadata (tag, is_banned) VALUES (?, 1)', (tag,))
         conn.commit()
+    invalidate_tag_meta_cache()
     return jsonify({'tag': tag, 'is_banned': bool(new_val)})
 
 @app.route('/api/tags/merge', methods=['POST'])
@@ -723,6 +735,7 @@ def api_merge_tags():
             else:
                 conn.execute('INSERT INTO tag_metadata (tag, merged_into) VALUES (?, ?)', (source, target))
         conn.commit()
+    invalidate_tag_meta_cache()
     return jsonify({'merged': sources, 'target': target})
 
 @app.route('/api/tags/unmerge', methods=['POST'])
@@ -735,6 +748,7 @@ def api_unmerge_tags():
         for tag in tags:
             conn.execute('UPDATE tag_metadata SET merged_into = NULL, updated_at = datetime("now") WHERE tag = ?', (tag,))
         conn.commit()
+    invalidate_tag_meta_cache()
     return jsonify({'unmerged': tags})
 
 # ── Auth routes ────────────────────────────────────────────────────────────────

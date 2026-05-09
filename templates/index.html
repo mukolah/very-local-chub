@@ -17,7 +17,7 @@
 
 {# Renders a single card card — used by both the search-results and all-cards loops #}
 {% macro render_card(card) %}
-<div class="card-container" id="card-{{ card.id }}" onmouseenter="showButtons(this)" onmouseleave="hideButtons(this)">
+<div class="card-container" id="card-{{ card.id }}" data-tags="{{ card.topics|join(',') | lower }}" onmouseenter="showButtons(this)" onmouseleave="hideButtons(this)">
     <button class="action-button delete-card-button" onclick='deleteCard("{{ card.id }}")' title="Delete card">🗙</button>
     <button class="action-button edit-tags-button" onclick="showEditTags(this, '{{ ','.join(card.topics) }}')" title="Edit tags">✎</button>
     <div class="edit-tags-container">
@@ -136,6 +136,7 @@
     <div id="sidebar">
         <button onclick="window.open('/api/docs','_blank')" class="sidebar-container" title="API Documentation">📡</button>
         <button onclick="openTagManager()" class="sidebar-container" id="tagsToggle" title="Open Tag Manager">T</button>
+        <button onclick="toggleShowBanned()" class="sidebar-container" id="showBannedToggle" title="Show banned cards">🚫</button>
         <button onclick="toggleBlur()" class="sidebar-container" id="nsfwToggle" title="Toggle NSFW blurring">😈</button>
         <button onclick="toggleCompactMode()" class="sidebar-container" id="compactToggle" title="Toggle compact mode">⇳</button>
         <button onclick="toggleDarkMode()" class="sidebar-container" id="darkModeToggle" title="Toggle dark mode">🌓︎</button>
