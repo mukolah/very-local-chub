@@ -125,7 +125,7 @@ python localchub.py --autoupdate 300 --min_tokens 200
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--autoupdate N` | 30000s | Auto-sync interval in seconds |
+| `--autoupdate N` | 300s | Auto-sync interval in seconds |
 | `--synctags` | off | Overwrite local tags from API on sync |
 | `--backup` | off | Copy old files to `/backup` before updating |
 | `--min_tags N` | 0 | Minimum tag count for a card to be saved |

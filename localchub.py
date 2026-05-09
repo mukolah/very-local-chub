@@ -137,7 +137,7 @@ def require_api_token(f):
 
 @app.before_request
 def check_auth():
-    exempt = {'/login', '/setup', '/setup/create', '/setup/skip', '/logout'}
+    exempt = {'/login', '/setup', '/setup/create', '/setup/skip', '/logout', '/sync'}
     if request.path.startswith('/static/') or request.path.startswith('/assets/') or request.path in exempt:
         return
     # API v1 routes use bearer token — skip session check
@@ -149,8 +149,12 @@ def check_auth():
     except Exception:
         return
     if not auth_skipped and not first_done:
+        if request.path.startswith('/api/'):
+            return jsonify({'error': 'Setup required'}), 401
         return redirect('/setup')
     if not auth_skipped and 'authenticated' not in session:
+        if request.path.startswith('/api/'):
+            return jsonify({'error': 'Unauthorized'}), 401
         return redirect('/login')
 
 # ── Card preview size ──────────────────────────────────────────────────────────
