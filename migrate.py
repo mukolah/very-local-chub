@@ -129,7 +129,7 @@ def _upsert_card(metadata):
             card_id = metadata.get('id')
             conn.execute('DELETE FROM card_tags WHERE card_id = ?', (card_id,))
             for tag in topics:
-                conn.execute('INSERT INTO card_tags (card_id, tag) VALUES (?, ?)', (card_id, tag))
+                conn.execute('INSERT OR IGNORE INTO card_tags (card_id, tag) VALUES (?, ?)', (card_id, tag))
             conn.commit()
             return True
     except Exception as e:
@@ -521,7 +521,7 @@ def sync_from_json(static_folder='static', verbose=True):
             file_path = os.path.join(static_folder, json_file)
             card_id = int(json_file.replace('.json', ''))
 
-            file_mtime = datetime.fromtimestamp(os.path.getmtime(file_path))
+            file_mtime = datetime.fromtimestamp(os.path.getmtime(file_path), tz=timezone.utc)
             existing_card = _get_card_by_id(card_id)
 
             with open(file_path, 'r', encoding='utf-8') as f:
@@ -529,6 +529,8 @@ def sync_from_json(static_folder='static', verbose=True):
 
             if existing_card:
                 db_updated = datetime.fromisoformat(existing_card['updated_at'])
+                if db_updated.tzinfo is None:
+                    db_updated = db_updated.replace(tzinfo=timezone.utc)
                 if file_mtime > db_updated:
                     if _upsert_card(metadata):
                         updated_count += 1
@@ -546,6 +548,63 @@ def sync_from_json(static_folder='static', verbose=True):
     return updated_count, added_count
 
 
+def sync_fast_from_json(static_folder='static', verbose=True):
+    """
+    Fast sync: insert cards whose ID is not yet in the database, skip the rest.
+
+    Args:
+        static_folder: Path to folder containing JSON files
+        verbose: Print progress information
+
+    Returns:
+        Tuple of (added_count, skipped_count)
+    """
+    if not os.path.exists(DB_PATH):
+        if verbose:
+            print("Database doesn't exist. Running full migration...")
+        return migrate_from_json(static_folder, verbose)
+
+    if verbose:
+        print("Fast-syncing database with JSON files (ID check only)...")
+
+    with _get_db() as conn:
+        existing_ids = {row[0] for row in conn.execute('SELECT id FROM cards').fetchall()}
+
+    json_files = [f for f in os.listdir(static_folder) if f.endswith('.json')]
+
+    if not json_files:
+        if verbose:
+            print("No JSON files found")
+        return 0, 0
+
+    added_count = 0
+    skipped_count = 0
+
+    for json_file in json_files:
+        try:
+            card_id = int(json_file.replace('.json', ''))
+
+            if card_id in existing_ids:
+                skipped_count += 1
+                continue
+
+            file_path = os.path.join(static_folder, json_file)
+            with open(file_path, 'r', encoding='utf-8') as f:
+                metadata = json.load(f)
+
+            if _upsert_card(metadata):
+                added_count += 1
+
+        except Exception as e:
+            if verbose:
+                print(f"Error processing {json_file}: {e}")
+
+    if verbose:
+        print(f"Fast sync complete! Added: {added_count}, Skipped: {skipped_count}")
+
+    return added_count, skipped_count
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='Migration and merge utilities for Very Local Chub'
@@ -559,6 +618,11 @@ def main():
         '--sync',
         action='store_true',
         help='Sync database with JSON files (update existing, add new)'
+    )
+    parser.add_argument(
+        '--syncfast',
+        action='store_true',
+        help='Fast sync: only insert cards whose ID is not yet in the database'
     )
     parser.add_argument(
         '--output',
@@ -577,6 +641,8 @@ def main():
 
     if args.merge:
         merge_databases(args.merge, args.output)
+    elif args.syncfast:
+        sync_fast_from_json(args.static)
     elif args.sync:
         sync_from_json(args.static)
     else:

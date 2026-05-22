@@ -1,4 +1,5 @@
 import os, json, base64, requests, re, random, argparse, time, threading, datetime, sqlite3, functools, secrets
+from urllib.parse import urlencode
 from contextlib import contextmanager
 from flask import Flask, render_template, request, send_from_directory, jsonify, Response, session, redirect, flash
 from PIL import Image, UnidentifiedImageError
@@ -10,7 +11,7 @@ CARDS_PER_PAGE = 100
 DB_PATH = 'cards.db'
 
 # ── In-memory caches ───────────────────────────────────────────────────────────
-_card_ids_cache = {'ids': None, 'time': 0.0}
+_card_ids_cache = {}  # sort_by -> {'ids': [...], 'time': float}
 _tag_meta_cache = {'data': None, 'time': 0.0}
 CARD_IDS_CACHE_TTL = 60
 TAG_META_CACHE_TTL = 30
@@ -125,6 +126,81 @@ def get_all_scores():
     except Exception:
         return {}
 
+def get_score_filtered_ids(score_filters):
+    conditions, params = [], []
+    for dim in ('quality', 'lewdity', 'story'):
+        mn = score_filters.get(f'{dim}_min')
+        mx = score_filters.get(f'{dim}_max')
+        if mn is not None:
+            conditions.append(f'{dim} IS NOT NULL AND {dim} >= ?')
+            params.append(mn)
+        if mx is not None:
+            conditions.append(f'{dim} IS NOT NULL AND {dim} <= ?')
+            params.append(mx)
+    if not conditions:
+        return None
+    with get_db() as conn:
+        rows = conn.execute(
+            f'SELECT card_id FROM card_scores WHERE {" AND ".join(conditions)}', params
+        ).fetchall()
+    return set(row['card_id'] for row in rows)
+
+def parse_date_filters(args):
+    filters = {}
+    for param, field in [('cfrom', 'created_from'), ('cto', 'created_to'),
+                         ('ufrom', 'updated_from'), ('uto', 'updated_to')]:
+        val = (args.get(param) or '').strip()
+        if val:
+            try:
+                filters[field] = datetime.datetime.strptime(val, '%Y-%m-%d').date()
+            except ValueError:
+                pass
+    return filters if filters else None
+
+def get_date_filtered_ids(date_filters):
+    cfrom = date_filters.get('created_from')
+    cto   = date_filters.get('created_to')
+    ufrom = date_filters.get('updated_from')
+    uto   = date_filters.get('updated_to')
+    matching = set()
+    for fname in os.listdir('static'):
+        if not fname.endswith('.json'):
+            continue
+        try:
+            card_id = int(fname.split('.')[0])
+            with open(os.path.join('static', fname)) as fh:
+                meta = json.load(fh)
+            created_date = datetime.datetime.strptime(meta['createdAt'], "%Y-%m-%dT%H:%M:%SZ").date() if meta.get('createdAt') else None
+            updated_date = datetime.datetime.strptime(meta['lastActivityAt'], "%Y-%m-%dT%H:%M:%SZ").date() if meta.get('lastActivityAt') else None
+            if cfrom and (created_date is None or created_date < cfrom):
+                continue
+            if cto and (created_date is None or created_date > cto):
+                continue
+            if ufrom and (updated_date is None or updated_date < ufrom):
+                continue
+            if uto and (updated_date is None or updated_date > uto):
+                continue
+            matching.add(card_id)
+        except Exception:
+            continue
+    return matching
+
+def parse_score_filters(args):
+    mapping = {
+        'qmin': 'quality_min', 'qmax': 'quality_max',
+        'lmin': 'lewdity_min', 'lmax': 'lewdity_max',
+        'smin': 'story_min', 'smax': 'story_max',
+    }
+    filters = {}
+    for key, field in mapping.items():
+        val = (args.get(key) or '').strip()
+        if val:
+            try:
+                filters[field] = float(val)
+            except ValueError:
+                pass
+    return filters if filters else None
+
 def get_scores_for_ids(card_ids):
     if not card_ids:
         return {}
@@ -139,19 +215,29 @@ def get_scores_for_ids(card_ids):
     except Exception:
         return {}
 
-def get_sorted_card_ids():
+def get_sorted_card_ids(sort_by='lastActivityAt'):
     now = time.time()
-    if _card_ids_cache['ids'] is not None and (now - _card_ids_cache['time']) < CARD_IDS_CACHE_TTL:
-        return _card_ids_cache['ids']
+    entry = _card_ids_cache.get(sort_by)
+    if entry is not None and (now - entry['time']) < CARD_IDS_CACHE_TTL:
+        return entry['ids']
     json_files = [f for f in os.listdir('static') if f.endswith('.json')]
-    json_files.sort(key=lambda f: os.path.getmtime(os.path.join('static', f)), reverse=True)
+    if sort_by in ('createdAt', 'lastActivityAt'):
+        def ts_key(f):
+            try:
+                with open(os.path.join('static', f)) as fh:
+                    meta = json.load(fh)
+                return meta.get(sort_by, '')
+            except Exception:
+                return ''
+        json_files.sort(key=ts_key, reverse=True)
+    else:
+        json_files.sort(key=lambda f: os.path.getmtime(os.path.join('static', f)), reverse=True)
     ids = [int(os.path.splitext(f)[0]) for f in json_files]
-    _card_ids_cache['ids'] = ids
-    _card_ids_cache['time'] = now
+    _card_ids_cache[sort_by] = {'ids': ids, 'time': now}
     return ids
 
 def invalidate_card_cache():
-    _card_ids_cache['ids'] = None
+    _card_ids_cache.clear()
 
 def invalidate_tag_meta_cache():
     _tag_meta_cache['data'] = None
@@ -255,7 +341,7 @@ def autoUpdate():
             requests.get('http://127.0.0.1:1488/sync?c=50')
         except requests.ConnectionError:
             pass
-        autoupdEvent.wait(autoupdInterval)
+        autoupdEvent.wait(min(autoupdInterval, 86400))
 
 # ── Card helpers ───────────────────────────────────────────────────────────────
 
@@ -328,22 +414,28 @@ def card_is_banned(card_tags, banned_set, merge_map):
             return True
     return False
 
-def getCardList(page, query=None, searchType='basic', sort_by='createdAt'):
-    card_ids_sorted = get_sorted_card_ids()
+def getCardList(page, query=None, searchType='basic', sort_by='lastActivityAt', score_filters=None, date_filters=None):
+    card_ids_sorted = get_sorted_card_ids(sort_by)
+    score_ids = get_score_filtered_ids(score_filters) if score_filters else None
+    date_ids  = get_date_filtered_ids(date_filters) if date_filters else None
+    if score_ids is not None and date_ids is not None:
+        filter_ids = score_ids & date_ids
+    else:
+        filter_ids = score_ids if score_ids is not None else date_ids
     randomTags = set()
 
     if query:
         tag_meta = get_tag_metadata_map()
         merge_map = {t: v['merged_into'] for t, v in tag_meta.items() if v['merged_into']}
 
-        include_tags_q = set()
-        exclude_tags_q = set()
-        for tag in query.lower().split(','):
-            tag = tag.strip()
-            if tag.startswith('-'):
-                exclude_tags_q.add(tag[1:])
+        include_terms = set()
+        exclude_terms = set()
+        for term in query.lower().split(','):
+            term = term.strip()
+            if term.startswith('-'):
+                exclude_terms.add(term[1:])
             else:
-                include_tags_q.add(tag)
+                include_terms.add(term)
 
         filtered_cards = []
         for card_id in card_ids_sorted:
@@ -354,14 +446,30 @@ def getCardList(page, query=None, searchType='basic', sort_by='createdAt'):
 
             card_tags = set(tag.lower() for tag in metadata.get('topics', []))
 
-            if include_tags_q and not all(card_has_effective_tag(card_tags, req, merge_map) for req in include_tags_q):
-                continue
-            if exclude_tags_q and not exclude_tags_q.isdisjoint(card_tags):
-                continue
+            if searchType == 'title':
+                name = metadata.get('name', '').lower()
+                if include_terms and not all(t in name for t in include_terms):
+                    continue
+                if exclude_terms and any(t in name for t in exclude_terms):
+                    continue
+            elif searchType == 'author':
+                author = metadata.get('fullPath', '').split('/')[0].lower()
+                if include_terms and not all(t in author for t in include_terms):
+                    continue
+                if exclude_terms and any(t in author for t in exclude_terms):
+                    continue
+            else:  # 'tag' (default)
+                if include_terms and not all(card_has_effective_tag(card_tags, req, merge_map) for req in include_terms):
+                    continue
+                if exclude_terms and not exclude_terms.isdisjoint(card_tags):
+                    continue
 
             for ct in card_tags:
                 randomTags.add(merge_map.get(ct, ct))
             filtered_cards.append((card_id, metadata))
+
+        if filter_ids is not None:
+            filtered_cards = [(cid, m) for cid, m in filtered_cards if cid in filter_ids]
 
         total_cards = len(filtered_cards)
         total_pages = (total_cards + CARDS_PER_PAGE - 1) // CARDS_PER_PAGE
@@ -372,6 +480,8 @@ def getCardList(page, query=None, searchType='basic', sort_by='createdAt'):
         return [createCardEntry(m, scores.get(cid)) for cid, m in page_slice], total_cards, total_pages, randomTags
 
     # Fast path: no query — bans handled client-side
+    if filter_ids is not None:
+        card_ids_sorted = [cid for cid in card_ids_sorted if cid in filter_ids]
     start = (page - 1) * CARDS_PER_PAGE
     end = start + CARDS_PER_PAGE
     page_ids = card_ids_sorted[start:end]
@@ -424,11 +534,14 @@ def get_png_info(cardId):
 def index():
     page = int(request.args.get('page', 1))
     query = request.args.get('query')
-    searchType = request.args.get('type', 'basic')
-    sort_by = request.args.get('sort', 'createdAt')
+    searchType = request.args.get('type', 'tag')
+    sort_by = request.args.get('sort', 'lastActivityAt')
+    score_filters = parse_score_filters(request.args)
+    date_filters = parse_date_filters(request.args)
 
-    cards, count, total_pages, randomTags = getCardList(page, query, searchType)
+    cards, count, total_pages, randomTags = getCardList(page, query, searchType, sort_by, score_filters, date_filters)
     search_results = cards if query else None
+    pagination_base = urlencode({k: v for k, v in request.args.items() if k != 'page'})
 
     return render_template(
         'index.html',
@@ -438,7 +551,8 @@ def index():
         card_preview_size=CARD_PREVIEW_SIZE,
         search_results=search_results,
         count=count,
-        random_tags=randomTags
+        random_tags=randomTags,
+        pagination_base=pagination_base,
     )
 
 # ── Sync ───────────────────────────────────────────────────────────────────────
@@ -518,13 +632,18 @@ def syncCards():
     def genSyncData():
         nonlocal totalCards
         page = 1
-        r = requests.get('https://inference.chub.ai/search', params={
+        resp = requests.get('https://inference.chub.ai/search', params={
             'first': totalCards, 'page': f'{page}', 'sort': sorting, 'asc': 'false',
-            'nsfw': allow_nsfw, 'nsfl': allow_nsfl, 'min_tokens': min_tokens,
-            'max_tokens': max_tokens, 'include_forks': include_forks, 'min_tags': min_tags,
+            'nsfw': str(allow_nsfw).lower(), 'nsfl': str(allow_nsfl).lower(), 'min_tokens': min_tokens,
+            'max_tokens': max_tokens, 'include_forks': str(include_forks).lower(), 'min_tags': min_tags,
             'tags': include_tags, 'exclude_tags': exclude_tags,
-            'require_expressions': require_expressions, 'require_lore_embedded': require_lore_embedded
-        }, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'}).json()
+            'require_expressions': str(require_expressions).lower(), 'require_lore_embedded': str(require_lore_embedded).lower()
+        }, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'})
+        if not resp.ok or not resp.text.strip():
+            print(f"API error: status={resp.status_code}, body={repr(resp.text[:200])}")
+            yield f"data: {json.dumps({'progress': 0, 'currCard': f'API error (HTTP {resp.status_code})', 'newCards': 0})}\n\n"
+            return
+        r = resp.json()
 
         if 'data' not in r:
             print(f"Unexpected response structure: {r}")
@@ -572,21 +691,25 @@ def edit_tags(cardId):
 def load_more():
     page = int(request.args.get('page', 1))
     query = request.args.get('query')
-    searchType = request.args.get('type', 'basic')
-    sort_by = request.args.get('sort', 'createdAt')
+    searchType = request.args.get('type', 'tag')
+    sort_by = request.args.get('sort', 'lastActivityAt')
+    score_filters = parse_score_filters(request.args)
+    date_filters = parse_date_filters(request.args)
 
-    cards, count, total_pages, _ = getCardList(page, query, searchType)
+    cards, count, total_pages, _ = getCardList(page, query, searchType, sort_by, score_filters, date_filters)
     return jsonify({'cards': cards, 'page': page, 'total_pages': total_pages})
 
 @app.route('/sort', methods=['GET'])
 def sort_cards():
     page = int(request.args.get('page', 1))
     query = request.args.get('query')
-    searchType = request.args.get('type', 'basic')
-    sort_by = request.args.get('sort', 'createdAt')
+    searchType = request.args.get('type', 'tag')
+    sort_by = request.args.get('sort', 'lastActivityAt')
+    score_filters = parse_score_filters(request.args)
+    date_filters = parse_date_filters(request.args)
 
-    cards, count, total_pages, randomTags = getCardList(page, query, searchType, sort_by)
-    return jsonify({'cards': cards, 'total_pages': total_pages})
+    cards, count, total_pages, randomTags = getCardList(page, query, searchType, sort_by, score_filters, date_filters)
+    return jsonify({'cards': cards, 'total_pages': total_pages, 'count': count})
 
 @app.route('/get_card_info/<int:cardId>', methods=['GET'])
 def get_card_info(cardId):
@@ -840,10 +963,21 @@ def api_docs():
 def api_v1_list_cards():
     page = int(request.args.get('page', 1))
     query = request.args.get('query')
-    searchType = request.args.get('type', 'basic')
+    searchType = request.args.get('type', 'tag')
     sort_by = request.args.get('sort', 'createdAt')
     cards, count, total_pages, _ = getCardList(page, query, searchType, sort_by)
     return jsonify({'cards': cards, 'page': page, 'total_pages': total_pages, 'count': count})
+
+@app.route('/api/v1/cards-mini', methods=['GET'])
+@require_api_token
+def api_v1_list_cards_mini():
+    page = int(request.args.get('page', 1))
+    query = request.args.get('query')
+    searchType = request.args.get('type', 'tag')
+    sort_by = request.args.get('sort', 'createdAt')
+    cards, count, total_pages, _ = getCardList(page, query, searchType, sort_by)
+    mini_cards = [{k: v for k, v in card.items() if k not in ('description', 'tagline')} for card in cards]
+    return jsonify({'cards': mini_cards, 'page': page, 'total_pages': total_pages, 'count': count})
 
 @app.route('/api/v1/cards/<int:cardId>', methods=['GET'])
 @require_api_token
@@ -944,7 +1078,7 @@ if __name__ == '__main__':
 
     if not os.path.exists(DB_PATH):
         static_jsons = [f for f in os.listdir('static') if f.endswith('.json')]
-        static_pngs = [f for f in os.listdir('static') if f.endswith('.png') and f != 'favicon.ico']
+        static_pngs = [f for f in os.listdir('static') if f.endswith('.png')]
         if static_jsons and static_pngs:
             print('[startup] No DB found but JSON/PNG files present — running migration...')
             from migrate import migrate_from_json

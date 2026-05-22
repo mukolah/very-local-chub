@@ -7,7 +7,76 @@ let currentPage = 1;
 let totalPages = window.APP_DATA.totalPages;
 let isLoading = false;
 let currentQuery = '';
-let currentType = 'basic';
+let currentType = 'tag';
+let currentSort = 'lastActivityAt';
+
+// ── Preload cache ─────────────────────────────────────────
+const PRELOAD_AHEAD = 10;
+const PRELOAD_TRIGGER = 5;
+const pageCache = new Map();         // page# → resolved data
+const preloadPromises = new Map();   // page# → in-flight Promise
+let preloadRunning = false;
+
+function buildPageUrl(page) {
+    const params = new URLSearchParams(window.location.search);
+    params.set('page', page);
+    params.set('sort', currentSort);
+    return `/load_more?${params.toString()}`;
+}
+
+// Returns an existing in-flight promise or starts a new fetch.
+// Callers can await this to get the data without launching a duplicate request.
+function fetchPage(page) {
+    if (preloadPromises.has(page)) return preloadPromises.get(page);
+    const p = fetch(buildPageUrl(page))
+        .then(r => r.json())
+        .then(data => {
+            pageCache.set(page, data);
+            preloadPromises.delete(page);
+            if (data.total_pages) totalPages = data.total_pages;
+            return data;
+        })
+        .catch(err => { preloadPromises.delete(page); throw err; });
+    preloadPromises.set(page, p);
+    return p;
+}
+
+function getHighestScheduled() {
+    let h = currentPage;
+    for (const p of pageCache.keys())      if (p > h) h = p;
+    for (const p of preloadPromises.keys()) if (p > h) h = p;
+    return h;
+}
+
+// Sequential chain: fetches one page at a time to avoid hammering the server.
+async function runPreloadChain() {
+    if (preloadRunning) return;
+    preloadRunning = true;
+    try {
+        let fetched = 0, p = currentPage + 1;
+        while (fetched < PRELOAD_AHEAD && p <= totalPages) {
+            if (!pageCache.has(p) && !preloadPromises.has(p)) {
+                await fetchPage(p);
+                fetched++;
+            }
+            p++;
+        }
+    } finally {
+        preloadRunning = false;
+        // Re-check in case currentPage advanced while the chain was running.
+        maybeTriggerPreload();
+    }
+}
+
+function maybeTriggerPreload() {
+    if (getHighestScheduled() - currentPage <= PRELOAD_TRIGGER) runPreloadChain();
+}
+
+function clearPageCache() {
+    pageCache.clear();
+    preloadPromises.clear();
+    preloadRunning = false;
+}
 
 // Tag manager state
 let tmTagData = [];
@@ -55,9 +124,9 @@ function applyBlurringPreference() {
 }
 
 // ── Download ──────────────────────────────────────────────
-function downloadImage(imagePath, cardName) {
+function downloadImage(imagePath) {
     const cardId = imagePath.split('/').pop().split('.').shift();
-    const filename = cardName.replace(' ', '_') + '_' + cardId + '.png';
+    const filename = cardId + '.png';
     fetch(imagePath)
         .then(r => r.blob())
         .then(blob => {
@@ -422,7 +491,7 @@ function createCardHTML(card) {
             ${buildScoreBarsHTML(card)}
             <p class='card-meta'>by <a href='?query=${card.author}&type=author' title='Browse all cards by ${card.author}'>${card.author}</a> | ${card.tokenCount} tokens</p>
             <p class='card-dates'><span title="Created by Author date/time">⚒ ${card.createdAt}</span> | <span title="Last update by Author date/time">🗘 ${card.lastActivityAt}</span></p>
-            <button class='download-btn' onclick='downloadImage("${card.imagePath}", "${card.name}")'>Download</button>
+            <button class='download-btn' onclick='downloadImage("${card.imagePath}")'>Download</button>
             ${topicsHTML}
             <div id='descr'>
                 ${card.tagline ? `<p id='tagline'>${card.tagline}</p>` : ''}
@@ -444,44 +513,126 @@ function makeCardDiv(card) {
 }
 
 // ── Infinite scroll ───────────────────────────────────────
-function loadMoreCards() {
+function renderCards(cards) {
+    const container = document.getElementById('cards-container');
+    cards.forEach(card => {
+        const div = makeCardDiv(card);
+        container.appendChild(div);
+        attachLightboxListeners(div);
+    });
+    applyBlurringPreference();
+    applyCompactModePreference();
+    applyTagMetaStyles();
+    applyBanFilter();
+}
+
+async function loadMoreCards() {
     if (isLoading || currentPage >= totalPages) return;
     isLoading = true;
-    currentPage++;
-    const params = new URLSearchParams(window.location.search);
-    const url = `/load_more?page=${currentPage}&query=${params.get('query') || ''}&type=${params.get('type') || 'basic'}`;
-
-    fetch(url)
-        .then(r => r.json())
-        .then(data => {
-            const container = document.getElementById('cards-container');
-            data.cards.forEach(card => {
-                const div = makeCardDiv(card);
-                container.appendChild(div);
-                attachLightboxListeners(div);
-            });
-            totalPages = data.total_pages;
-            isLoading = false;
-            applyBlurringPreference();
-            applyCompactModePreference();
-            applyTagMetaStyles();
-            applyBanFilter();
-        })
-        .catch(err => { console.error('Error loading more cards:', err); isLoading = false; });
+    const nextPage = currentPage + 1;
+    try {
+        let data;
+        if (pageCache.has(nextPage)) {
+            data = pageCache.get(nextPage);
+            pageCache.delete(nextPage);
+        } else {
+            // Join the in-flight preload if there is one, otherwise fetch fresh.
+            showLoading();
+            data = await fetchPage(nextPage);
+            pageCache.delete(nextPage); // fetchPage already stored it; consume now
+        }
+        currentPage = nextPage;
+        totalPages = data.total_pages;
+        renderCards(data.cards);
+        maybeTriggerPreload();
+    } catch (err) {
+        console.error('Error loading more cards:', err);
+    } finally {
+        isLoading = false;
+        hideLoading();
+    }
 }
 
 window.addEventListener('scroll', () => {
     if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 500) loadMoreCards();
 });
 
-// ── Sort ──────────────────────────────────────────────────
-function handleSortChange(event) {
-    const selectedValue = event.target.value;
-    const params = new URLSearchParams(window.location.search);
+// ── Loading indicator ─────────────────────────────────────
+let _loadingCount = 0;
+function showLoading() {
+    _loadingCount++;
+    const bar = document.getElementById('loadingBar');
+    if (bar) bar.style.display = 'block';
+}
+function hideLoading() {
+    _loadingCount = Math.max(0, _loadingCount - 1);
+    if (_loadingCount === 0) {
+        const bar = document.getElementById('loadingBar');
+        if (bar) bar.style.display = 'none';
+    }
+}
 
-    fetch(`/sort?page=1&query=${params.get('query') || ''}&type=${params.get('type') || 'basic'}&sort=${selectedValue}`)
+// ── Search (no-reload) ────────────────────────────────────
+function performSearch(params) {
+    clearPageCache();
+    isLoading = true;
+    showLoading();
+    currentPage = 1;
+    params.set('page', '1');
+    if (!params.get('sort')) params.set('sort', currentSort);
+
+    fetch(`/sort?${params.toString()}`)
         .then(r => r.json())
         .then(data => {
+            totalPages = data.total_pages;
+            currentQuery = params.get('query') || '';
+            currentSort = params.get('sort') || currentSort;
+            history.pushState({}, '', `/?${params.toString()}`);
+
+            if (data.count !== undefined) {
+                const countEl = document.querySelector('.card-count');
+                if (countEl) countEl.textContent = currentQuery ? `${data.count} results` : `${data.count} Cards`;
+            }
+
+            window.APP_DATA.searchQuery = currentQuery;
+            const container = document.getElementById('cards-container');
+            container.innerHTML = '';
+            data.cards.forEach(card => {
+                const div = makeCardDiv(card);
+                container.appendChild(div);
+                attachLightboxListeners(div);
+            });
+            applyBlurringPreference();
+            applyCompactModePreference();
+            applyTagMetaStyles();
+            applyBanFilter();
+            highlightSearchResults();
+            isLoading = false;
+            hideLoading();
+            maybeTriggerPreload();
+        })
+        .catch(err => { console.error('Search error:', err); isLoading = false; hideLoading(); });
+}
+
+// ── Sort ──────────────────────────────────────────────────
+function applySortOrder(sortValue) {
+    clearPageCache();
+    currentSort = sortValue;
+    currentPage = 1;
+    const params = new URLSearchParams(window.location.search);
+    showLoading();
+
+    params.set('page', '1');
+    params.set('sort', sortValue);
+    fetch(`/sort?${params.toString()}`)
+        .then(r => r.json())
+        .then(data => {
+            totalPages = data.total_pages;
+            history.pushState({}, '', `/?${params.toString()}`);
+            if (data.count !== undefined) {
+                const countEl = document.querySelector('.card-count');
+                if (countEl) countEl.textContent = currentQuery ? `${data.count} results` : `${data.count} Cards`;
+            }
             const container = document.getElementById('cards-container');
             container.innerHTML = '';
             data.cards.forEach(card => {
@@ -491,8 +642,26 @@ function handleSortChange(event) {
             });
             applyTagMetaStyles();
             applyBanFilter();
+            hideLoading();
+            maybeTriggerPreload();
         })
-        .catch(err => console.error('Error fetching sorted cards:', err));
+        .catch(err => { console.error('Error fetching sorted cards:', err); hideLoading(); });
+}
+
+function initSortToggle() {
+    const toggle = document.getElementById('sortToggle');
+    if (!toggle) return;
+    toggle.querySelectorAll('.sort-opt').forEach(opt => {
+        opt.classList.toggle('active', opt.dataset.val === currentSort);
+    });
+    toggle.addEventListener('click', () => {
+        const opts = toggle.querySelectorAll('.sort-opt');
+        const active = toggle.querySelector('.sort-opt.active');
+        const next = active === opts[0] ? opts[1] : opts[0];
+        active.classList.remove('active');
+        next.classList.add('active');
+        applySortOrder(next.dataset.val);
+    });
 }
 
 // ── Tag metadata ──────────────────────────────────────────
@@ -778,6 +947,70 @@ highlightSearchResults();
 
 // Set search type select from URL
 const _initParams = new URLSearchParams(window.location.search);
+// ── Score filter ──────────────────────────────────────────
+const _scoreFilterMap = [
+    ['qmin', 'sfQmin', 'hQmin'],
+    ['qmax', 'sfQmax', 'hQmax'],
+    ['lmin', 'sfLmin', 'hLmin'],
+    ['lmax', 'sfLmax', 'hLmax'],
+    ['smin', 'sfSmin', 'hSmin'],
+    ['smax', 'sfSmax', 'hSmax'],
+    ['cfrom', 'sfCfrom', 'hCfrom'],
+    ['cto',   'sfCto',   'hCto'],
+    ['ufrom', 'sfUfrom', 'hUfrom'],
+    ['uto',   'sfUto',   'hUto'],
+];
+
+function initScoreFilter() {
+    const panel = document.getElementById('scoreFilterPanel');
+    panel.style.display = 'none';
+
+    const params = new URLSearchParams(window.location.search);
+    let hasFilter = false;
+    for (const [param, panelId, hiddenId] of _scoreFilterMap) {
+        const val = params.get(param) || '';
+        if (val) {
+            document.getElementById(panelId).value = val;
+            document.getElementById(hiddenId).value = val;
+            hasFilter = true;
+        }
+    }
+    if (hasFilter) document.getElementById('filterToggleBtn').classList.add('active');
+
+    document.getElementById('filterToggleBtn').addEventListener('click', e => {
+        e.stopPropagation();
+        panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+    });
+
+    document.addEventListener('click', e => {
+        const wrap = document.querySelector('.filter-wrap');
+        if (wrap && !wrap.contains(e.target)) {
+            document.getElementById('scoreFilterPanel').style.display = 'none';
+        }
+    });
+}
+
+function applyScoreFilter() {
+    for (const [, panelId, hiddenId] of _scoreFilterMap) {
+        document.getElementById(hiddenId).value = document.getElementById(panelId).value;
+    }
+    document.getElementById('scoreFilterPanel').style.display = 'none';
+    const params = new URLSearchParams(new FormData(document.querySelector('.search-container form')));
+    params.set('sort', currentSort);
+    performSearch(params);
+}
+
+function clearScoreFilter() {
+    for (const [, panelId, hiddenId] of _scoreFilterMap) {
+        document.getElementById(panelId).value = '';
+        document.getElementById(hiddenId).value = '';
+    }
+    document.getElementById('scoreFilterPanel').style.display = 'none';
+    const params = new URLSearchParams(new FormData(document.querySelector('.search-container form')));
+    params.set('sort', currentSort);
+    performSearch(params);
+}
+
 const _typeParam = _initParams.get('type');
 if (_typeParam) {
     const opt = document.querySelector(`#searchtype [value="${_typeParam}"]`);
@@ -794,6 +1027,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     currentPage = parseInt(_initParams.get('page')) || 1;
     currentQuery = _initParams.get('query') || '';
     currentType = _initParams.get('type') || 'basic';
+    currentSort = _initParams.get('sort') || currentSort;
 
     const tagsContainer = document.querySelector('.tags-container');
     if (tagsContainer) tagsContainer.classList.remove('show-tags');
@@ -802,7 +1036,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (e.target === this) closeTagManager();
     });
 
-    document.getElementById('sort').addEventListener('change', handleSortChange);
+    initSortToggle();
+    initScoreFilter();
+
+    const searchForm = document.querySelector('.search-container form');
+    if (searchForm) {
+        searchForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const params = new URLSearchParams(new FormData(this));
+            params.set('sort', currentSort);
+            performSearch(params);
+        });
+    }
 
     setupAutocomplete();
     filterTags();
@@ -810,6 +1055,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadTagMeta();
     applyTagMetaStyles();
     applyBanFilter();
+
+    maybeTriggerPreload();
 
     const showBannedBtn = document.getElementById('showBannedToggle');
     if (showBannedBtn) showBannedBtn.style.opacity = showBanned ? '1' : '0.5';

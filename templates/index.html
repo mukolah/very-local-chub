@@ -11,7 +11,7 @@
         style-src 'self' http://127.0.0.1:*;
         font-src 'self' http://127.0.0.1:*;
         connect-src 'self' http://127.0.0.1:*;">
-    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+    <link rel="icon" type="image/x-icon" href="/assets/favicon.ico">
     <link rel="stylesheet" href="/assets/index.css">
 </head>
 
@@ -44,7 +44,7 @@
             <span title="Created by Author date/time">⚒ {{ card.createdAt }}</span>
             | <span title="Last update by Author date/time">🗘 {{ card.lastActivityAt }}</span>
         </p>
-        <button class="download-btn" onclick='downloadImage("{{ card.imagePath }}", "{{ card.name }}")'>Download</button>
+        <button class="download-btn" onclick='downloadImage("{{ card.imagePath }}")'>Download</button>
         {% if card.topics %}
         <p id="tags"><i>Tags: {% for topic in card.topics %}<a href="?query={{ topic }}&type=tag" title="Browse other cards tagged with {{ topic }}">{{ topic }}</a>{% if not loop.last %}, {% endif %}{% endfor %}</i></p>
         {% endif %}
@@ -57,6 +57,7 @@
 {% endmacro %}
 
 <body class="light-mode">
+<div id="loadingBar"></div>
     <div class="topbar">
         <a href="/?page=1" class="brand">Local Chub</a>
         <div class="search-liner">
@@ -65,23 +66,70 @@
                     <input type="text" id="searchInput" name="query"
                         placeholder="Use commas to separate queries, use minus to exclude, e.g. -rpg"
                         value="{{ request.args.get('query', '') }}" autocomplete="off">
+                    <div class="filter-wrap">
+                        <button type="button" id="filterToggleBtn" class="filter-toggle-btn" title="Filter by scores">
+                            <svg viewBox="0 0 14 12" width="14" height="12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="0" y1="1" x2="14" y2="1"/><line x1="2" y1="5.5" x2="12" y2="5.5"/><line x1="4" y1="10" x2="10" y2="10"/></svg>
+                        </button>
+                        <div id="scoreFilterPanel" class="score-filter-panel" style="display:none;">
+                            <div class="sfp-row">
+                                <span class="sfp-label">⭐ Quality</span>
+                                <input type="number" id="sfQmin" min="1" max="5" step="0.5" placeholder="min">
+                                <span class="sfp-dash">–</span>
+                                <input type="number" id="sfQmax" min="1" max="5" step="0.5" placeholder="max">
+                            </div>
+                            <div class="sfp-row">
+                                <span class="sfp-label">🍑 Lewdity</span>
+                                <input type="number" id="sfLmin" min="1" max="5" step="0.5" placeholder="min">
+                                <span class="sfp-dash">–</span>
+                                <input type="number" id="sfLmax" min="1" max="5" step="0.5" placeholder="max">
+                            </div>
+                            <div class="sfp-row">
+                                <span class="sfp-label">📖 Story</span>
+                                <input type="number" id="sfSmin" min="1" max="5" step="0.5" placeholder="min">
+                                <span class="sfp-dash">–</span>
+                                <input type="number" id="sfSmax" min="1" max="5" step="0.5" placeholder="max">
+                            </div>
+                            <div class="sfp-divider"></div>
+                            <div class="sfp-row">
+                                <span class="sfp-label">⚒ Created</span>
+                                <input type="date" id="sfCfrom">
+                                <span class="sfp-dash">–</span>
+                                <input type="date" id="sfCto">
+                            </div>
+                            <div class="sfp-row">
+                                <span class="sfp-label">🗘 Updated</span>
+                                <input type="date" id="sfUfrom">
+                                <span class="sfp-dash">–</span>
+                                <input type="date" id="sfUto">
+                            </div>
+                            <div class="sfp-actions">
+                                <button type="button" onclick="applyScoreFilter()">Apply</button>
+                                <button type="button" onclick="clearScoreFilter()">Clear</button>
+                            </div>
+                        </div>
+                    </div>
+                    <input type="hidden" name="qmin" id="hQmin">
+                    <input type="hidden" name="qmax" id="hQmax">
+                    <input type="hidden" name="lmin" id="hLmin">
+                    <input type="hidden" name="lmax" id="hLmax">
+                    <input type="hidden" name="smin" id="hSmin">
+                    <input type="hidden" name="smax" id="hSmax">
+                    <input type="hidden" name="cfrom" id="hCfrom">
+                    <input type="hidden" name="cto" id="hCto">
+                    <input type="hidden" name="ufrom" id="hUfrom">
+                    <input type="hidden" name="uto" id="hUto">
                     <select name="type" id="searchtype" class="search-type">
-                        <option value="basic">Basic</option>
                         <option value="tag">Tag</option>
                         <option value="title">Title</option>
                         <option value="author">Author</option>
-                        <option value="random">Random</option>
                     </select>
                     <button type="submit">Search</button>
                 </form>
                 <div id="autocompleteDropdown" class="autocomplete-dropdown"></div>
             </div>
-            <div class="sort-dropdown">
-                <label for="sort"></label>
-                <select name="sort" id="sort" class="search-type">
-                    <option value="createdAt">Sort: Card Created</option>
-                    <option value="lastActivityAt">Sort: Card Updated</option>
-                </select>
+            <div class="sort-toggle" id="sortToggle" title="Toggle sort order">
+                <span class="sort-opt active" data-val="lastActivityAt">🗘 Updated</span>
+                <span class="sort-opt" data-val="createdAt">⚒ Created</span>
             </div>
         </div>
         <span class="card-count">
@@ -108,11 +156,11 @@
     {% if not search_results %}
     <div class="pagination">
         {% if page > 1 %}
-        <a href="?query={{ request.args.get('query', '') }}&type={{ request.args.get('type', 'basic') }}&page={{ page - 1 }}">&lt; Previous</a>
+        <a href="?{{ pagination_base }}&page={{ page - 1 }}">&lt; Previous</a>
         {% endif %}
         Page {{ page }} of {{ total_pages }}
         {% if page < total_pages %}
-        <a href="?query={{ request.args.get('query', '') }}&type={{ request.args.get('type', 'basic') }}&page={{ page + 1 }}">Next &gt;</a>
+        <a href="?{{ pagination_base }}&page={{ page + 1 }}">Next &gt;</a>
         {% endif %}
     </div>
     {% else %}
