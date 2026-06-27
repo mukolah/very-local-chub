@@ -130,7 +130,7 @@
 
     <div class="endpoint">
         <div class="endpoint-title"><span class="badge get">GET</span><code>/api/v1/cards-full</code></div>
-        <p>List cards with the same filters as <code>/api/v1/cards</code>, but each card also includes <code>raw_metadata</code> (full parsed <code>.json</code> file) and a structured <code>scores</code> object. Heavier than the standard list — use for bulk data export or agent workflows that need the raw source data.</p>
+        <p>List cards with the same filters as <code>/api/v1/cards</code>, but each card also includes <code>raw_metadata</code> (full parsed <code>.json</code> file), <code>raw_data</code> (character sheet from the embedded PNG chara block — description, first message, personality, scenario, creator notes, etc.), <code>png_info</code> (full chara JSON), and a structured <code>scores</code> object. Heavier than the standard list — use for bulk data export or agent workflows that need the complete source data.</p>
         <table>
             <tr><th>Param</th><th>Type</th><th>Description</th></tr>
             <tr><td><code>page</code></td><td>integer</td><td>Page number (default: 1)</td></tr>
@@ -149,7 +149,10 @@
     "scores": { "quality": 4.0, "lewdity": null, "story": 3.5 },
     "raw_metadata": { "id": 123, "name": "...", "fullPath": "author/name",
                       "nTokens": 1500, "description": "&lt;p&gt;...&lt;/p&gt;",
-                      "topics": [...], "createdAt": "...", "lastActivityAt": "...", ... }
+                      "topics": [...], "createdAt": "...", "lastActivityAt": "...", ... },
+    "raw_data": { "description": "...", "first_mes": "...", "personality": "...",
+                  "scenario": "...", "creator_notes": "...", ... },
+    "png_info": { "spec": "chara_card_v2", "data": { ... } }
   } ],
   "page": 1, "total_pages": 12, "count": 1180
 }</code></pre>

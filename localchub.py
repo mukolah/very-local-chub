@@ -995,9 +995,12 @@ def api_v1_list_cards_full():
             metadata = getCardMetadata(card_id)
         except FileNotFoundError:
             metadata = {}
+        png_info = getPngInfo(card_id)
         score = all_scores.get(card_id)
         entry = dict(card)
         entry['raw_metadata'] = metadata
+        entry['raw_data'] = png_info.get('data', {})
+        entry['png_info'] = png_info
         entry['scores'] = {
             'quality': score.get('quality') if score else None,
             'lewdity': score.get('lewdity') if score else None,
