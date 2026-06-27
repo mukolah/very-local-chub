@@ -129,6 +129,20 @@
     </div>
 
     <div class="endpoint">
+        <div class="endpoint-title"><span class="badge get">GET</span><code>/api/v1/cards-mini</code></div>
+        <p>Same as <code>/api/v1/cards</code> but omits <code>description</code> and <code>tagline</code> per card. Useful when you only need identifiers, scores, and tags and want a lighter payload.</p>
+        <table>
+            <tr><th>Param</th><th>Type</th><th>Description</th></tr>
+            <tr><td><code>page</code></td><td>integer</td><td>Page number (default: 1)</td></tr>
+            <tr><td><code>query</code></td><td>string</td><td>Search query (comma-separated tags, prefix with <code>-</code> to exclude)</td></tr>
+            <tr><td><code>type</code></td><td>string</td><td><code>basic</code> | <code>tag</code> | <code>title</code> | <code>author</code></td></tr>
+            <tr><td><code>sort</code></td><td>string</td><td><code>createdAt</code> | <code>lastActivityAt</code></td></tr>
+        </table>
+        <pre><code>curl -H "Authorization: Bearer TOKEN" \
+     "http://localhost:1488/api/v1/cards-mini?page=1&sort=lastActivityAt"</code></pre>
+    </div>
+
+    <div class="endpoint">
         <div class="endpoint-title"><span class="badge get">GET</span><code>/api/v1/cards-full</code></div>
         <p>List cards with the same filters as <code>/api/v1/cards</code>, but each card also includes <code>raw_metadata</code> (full parsed <code>.json</code> file), <code>raw_data</code> (character sheet from the embedded PNG chara block — description, first message, personality, scenario, creator notes, etc.), <code>png_info</code> (full chara JSON), and a structured <code>scores</code> object. Heavier than the standard list — use for bulk data export or agent workflows that need the complete source data.</p>
         <table>
