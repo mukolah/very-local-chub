@@ -2,7 +2,8 @@
 Migration and merge utilities for Very Local Chub database
 
 Usage:
-    python migrate.py                           # Migrate all JSONs to database
+    python migrate.py                           # Fast sync (skip existing cards)
+    python migrate.py --full                    # Full migration (upsert all cards)
     python migrate.py --merge database_to_merge.db  # Merge another database
 """
 
@@ -615,6 +616,11 @@ def main():
         help='Merge another database (e.g., --merge database_to_merge.db)'
     )
     parser.add_argument(
+        '--full',
+        action='store_true',
+        help='Full migration: upsert all cards (overwrite existing)'
+    )
+    parser.add_argument(
         '--sync',
         action='store_true',
         help='Sync database with JSON files (update existing, add new)'
@@ -641,12 +647,14 @@ def main():
 
     if args.merge:
         merge_databases(args.merge, args.output)
-    elif args.syncfast:
-        sync_fast_from_json(args.static)
+    elif args.full:
+        migrate_from_json(args.static)
     elif args.sync:
         sync_from_json(args.static)
+    elif args.syncfast:
+        sync_fast_from_json(args.static)
     else:
-        migrate_from_json(args.static)
+        sync_fast_from_json(args.static)
 
 
 if __name__ == '__main__':

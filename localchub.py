@@ -392,7 +392,7 @@ def createCardEntry(metadata, score=None):
         'name': metadata['name'],
         'tagline': cleaned_tagline,
         'description': cleaned_description,
-        'topics': [topic for topic in metadata['topics'] if topic != 'ROOT'],
+        'topics': [topic for topic in metadata.get('topics', []) if topic != 'ROOT'],
         'imagePath': f'static/{metadata["id"]}.png',
         'tokenCount': metadata['nTokens'],
         'lastActivityAt': datetime.datetime.strptime(metadata['lastActivityAt'], "%Y-%m-%dT%H:%M:%SZ").strftime("%b %d, %Y %H:%M"),
