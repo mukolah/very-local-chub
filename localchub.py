@@ -979,6 +979,33 @@ def api_v1_list_cards_mini():
     mini_cards = [{k: v for k, v in card.items() if k not in ('description', 'tagline')} for card in cards]
     return jsonify({'cards': mini_cards, 'page': page, 'total_pages': total_pages, 'count': count})
 
+@app.route('/api/v1/cards-full', methods=['GET'])
+@require_api_token
+def api_v1_list_cards_full():
+    page = int(request.args.get('page', 1))
+    query = request.args.get('query')
+    searchType = request.args.get('type', 'tag')
+    sort_by = request.args.get('sort', 'createdAt')
+    cards, count, total_pages, _ = getCardList(page, query, searchType, sort_by)
+    all_scores = get_all_scores()
+    full_cards = []
+    for card in cards:
+        card_id = card['id']
+        try:
+            metadata = getCardMetadata(card_id)
+        except FileNotFoundError:
+            metadata = {}
+        score = all_scores.get(card_id)
+        entry = dict(card)
+        entry['raw_metadata'] = metadata
+        entry['scores'] = {
+            'quality': score.get('quality') if score else None,
+            'lewdity': score.get('lewdity') if score else None,
+            'story': score.get('story') if score else None,
+        }
+        full_cards.append(entry)
+    return jsonify({'cards': full_cards, 'page': page, 'total_pages': total_pages, 'count': count})
+
 @app.route('/api/v1/cards/<int:cardId>', methods=['GET'])
 @require_api_token
 def api_v1_get_card(cardId):

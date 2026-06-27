@@ -129,6 +129,33 @@
     </div>
 
     <div class="endpoint">
+        <div class="endpoint-title"><span class="badge get">GET</span><code>/api/v1/cards-full</code></div>
+        <p>List cards with the same filters as <code>/api/v1/cards</code>, but each card also includes <code>raw_metadata</code> (full parsed <code>.json</code> file) and a structured <code>scores</code> object. Heavier than the standard list — use for bulk data export or agent workflows that need the raw source data.</p>
+        <table>
+            <tr><th>Param</th><th>Type</th><th>Description</th></tr>
+            <tr><td><code>page</code></td><td>integer</td><td>Page number (default: 1)</td></tr>
+            <tr><td><code>query</code></td><td>string</td><td>Search query (comma-separated tags, prefix with <code>-</code> to exclude)</td></tr>
+            <tr><td><code>type</code></td><td>string</td><td><code>basic</code> | <code>tag</code> | <code>title</code> | <code>author</code></td></tr>
+            <tr><td><code>sort</code></td><td>string</td><td><code>createdAt</code> | <code>lastActivityAt</code></td></tr>
+        </table>
+        <pre><code>curl -H "Authorization: Bearer TOKEN" \
+     "http://localhost:1488/api/v1/cards-full?page=1&sort=lastActivityAt"</code></pre>
+        <p><strong>Response:</strong></p>
+        <pre><code>{
+  "cards": [ {
+    "id": 123, "name": "...", "author": "...", "topics": [...],
+    "tokenCount": 1500, "description": "...", "tagline": "...",
+    "quality_score": 4.0, "quality_bar": "⭐⭐⭐⭐☆ 4.0",
+    "scores": { "quality": 4.0, "lewdity": null, "story": 3.5 },
+    "raw_metadata": { "id": 123, "name": "...", "fullPath": "author/name",
+                      "nTokens": 1500, "description": "&lt;p&gt;...&lt;/p&gt;",
+                      "topics": [...], "createdAt": "...", "lastActivityAt": "...", ... }
+  } ],
+  "page": 1, "total_pages": 12, "count": 1180
+}</code></pre>
+    </div>
+
+    <div class="endpoint">
         <div class="endpoint-title"><span class="badge get">GET</span><code>/api/v1/cards/{id}</code></div>
         <p>Full card details including character sheet data from the PNG.</p>
         <pre><code>curl -H "Authorization: Bearer TOKEN" \
